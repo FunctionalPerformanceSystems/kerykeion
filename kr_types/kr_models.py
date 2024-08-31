@@ -154,6 +154,7 @@ class AstrologicalSubjectModel(BaseModel):
 
     # Nodes
     mean_node: KerykeionPointModel
+    south_node: KerykeionPointModel
     true_node: KerykeionPointModel
 
     # Lunar Phase

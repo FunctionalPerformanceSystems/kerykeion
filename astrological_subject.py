@@ -359,6 +359,7 @@ class AstrologicalSubject:
         neptune_deg = swe.calc(self.julian_day, 8, self._iflag)[0][0]
         pluto_deg = swe.calc(self.julian_day, 9, self._iflag)[0][0]
         mean_node_deg = swe.calc(self.julian_day, 10, self._iflag)[0][0]
+        south_node_deg = (mean_node_deg + 180) % 360
         true_node_deg = swe.calc(self.julian_day, 11, self._iflag)[0][0]
         #chiron_deg = swe.calc(self.julian_day, 15, self._iflag)[0][0]
         self.asc_and_mc = swe.houses(self.julian_day, self.lat, self.lng, hsys=str.encode('P'))[0]
@@ -378,6 +379,7 @@ class AstrologicalSubject:
             neptune_deg,
             pluto_deg,
             mean_node_deg,
+            south_node_deg,
             true_node_deg,
             #chiron_deg,
             asc_deg,
@@ -401,9 +403,10 @@ class AstrologicalSubject:
         self.neptune = calculate_position(self.planets_degrees_ut[8], "Neptune", point_type=point_type)
         self.pluto = calculate_position(self.planets_degrees_ut[9], "Pluto", point_type=point_type)
         self.mean_node = calculate_position(self.planets_degrees_ut[10], "Mean_Node", point_type=point_type)
-        self.true_node = calculate_position(self.planets_degrees_ut[11], "True_Node", point_type=point_type)
-        self.asc = calculate_position(self.planets_degrees_ut[12], "ASC", point_type=point_type)
-        self.mc = calculate_position(self.planets_degrees_ut[13], "MC", point_type=point_type)
+        self.south_node = calculate_position(self.planets_degrees_ut[11], "South_Node", point_type=point_type)
+        self.true_node = calculate_position(self.planets_degrees_ut[12], "True_Node", point_type=point_type)
+        self.asc = calculate_position(self.planets_degrees_ut[13], "ASC", point_type=point_type)
+        self.mc = calculate_position(self.planets_degrees_ut[14], "MC", point_type=point_type)
         #self.chiron = calculate_position(self.planets_degrees_ut[12], "Chiron", point_type=point_type)
 
     def _planets_in_houses(self) -> None:
@@ -464,10 +467,11 @@ class AstrologicalSubject:
         self.neptune = for_every_planet(self.neptune, self.planets_degrees_ut[8])
         self.pluto = for_every_planet(self.pluto, self.planets_degrees_ut[9])
         self.mean_node = for_every_planet(self.mean_node, self.planets_degrees_ut[10])
-        self.true_node = for_every_planet(self.true_node, self.planets_degrees_ut[11])
+        self.south_node = for_every_planet(self.south_node, self.planets_degrees_ut[11])
+        self.true_node = for_every_planet(self.true_node, self.planets_degrees_ut[12])
         #self.chiron = for_every_planet(self.chiron, self.planets_degrees_ut[12])
-        self.asc = for_every_planet(self.asc, self.planets_degrees_ut[12])
-        self.mc = for_every_planet(self.mc, self.planets_degrees_ut[13])
+        self.asc = for_every_planet(self.asc, self.planets_degrees_ut[13])
+        self.mc = for_every_planet(self.mc, self.planets_degrees_ut[14])
 
         self.planets_list = [
             self.sun,
@@ -481,6 +485,7 @@ class AstrologicalSubject:
             self.neptune,
             self.pluto,
             self.mean_node,
+            self.south_node,
             self.true_node,
             self.asc,
             self.mc

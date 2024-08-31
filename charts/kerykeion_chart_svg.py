@@ -11,13 +11,18 @@ from datetime import datetime
 from kerykeion.settings.kerykeion_settings import get_settings
 from kerykeion.aspects.synastry_aspects import SynastryAspects
 from kerykeion.aspects.natal_aspects import NatalAspects
+from kerykeion.aspects.composite_aspects import CompositeAspects
 from kerykeion.astrological_subject import AstrologicalSubject
 from kerykeion.kr_types import KerykeionException, ChartType
 from kerykeion.kr_types import ChartTemplateDictionary
 from kerykeion.charts.charts_utils import decHourJoin, degreeDiff, offsetToTz, sliceToX, sliceToY
+from kerykeion.utilities import mean_angle, calculate_position, shortest_arc_midpoint
+from kerykeion.aspects.aspects_utils import get_active_points_list
 from pathlib import Path
 from string import Template
 from typing import Union
+
+test_offset = 180
 
 
 class KerykeionChartSVG:
@@ -63,7 +68,11 @@ class KerykeionChartSVG:
 
         # SVG Width
         self.natal_width = 772.2
+        # TODO: Make this dynamic
+        #self.full_width = 772.2
         self.full_width = 1200
+
+        #self.center = self.natal_width / 2
 
         self.parse_json_settings(new_settings_file)
         self.chart_type = chart_type
@@ -88,16 +97,110 @@ class KerykeionChartSVG:
         for planet in available_celestial_points:
             self.points_deg_ut.append(self.user.get(planet).abs_pos)
 
+        def get_active_points_for_chart(subject, available_planets_setting):
+            point_list = []
+            for planet in available_planets_setting:
+                if planet["is_active"] == True:
+                    point_data = subject.get(planet["name"].lower())
+                    if point_data:
+                        point_list.append({
+                            "name": planet["name"],
+                            "abs_pos": point_data.abs_pos,
+                            "position": point_data.position,
+                            "sign_num": point_data.sign_num
+                        })
+            return point_list
+        
+        if self.chart_type == "Composite":
+            if not second_obj:
+                raise KerykeionException("Second object is required for Composite chart.")
+
+            self.t_user = second_obj
+
+            first_points = get_active_points_for_chart(self.user, self.available_planets_setting)
+            second_points = get_active_points_for_chart(self.t_user, self.available_planets_setting)
+
+            self.points_deg_ut = []
+            self.points_deg = []
+            self.points_sign = []
+
+            for first, second in zip(first_points, second_points):
+                mean_abs_pos = mean_angle(first["abs_pos"], second["abs_pos"])
+                self.points_deg_ut.append(mean_abs_pos)
+                
+                # Calculate the sign_num for the composite position
+                composite_point = calculate_position(mean_abs_pos, first["name"], point_type="Planet")
+                self.points_sign.append(composite_point["sign_num"])
+                
+                # Calculate position relative to the sign (0-30 degrees)
+                self.points_deg.append(mean_abs_pos % 30)
+        else:
+            self.points_deg_ut = []
+            self.points_deg = []
+            self.points_sign = []
+            for planet in available_celestial_points:
+                point_data = self.user.get(planet)
+                self.points_deg_ut.append(point_data.abs_pos)
+                self.points_deg.append(point_data.position)
+                self.points_sign.append(point_data.sign_num)
+        ''' 
+        if self.chart_type == "Composite":
+            if not second_obj:
+                raise KerykeionException("Second object is required for Composite chart.")
+
+            self.t_user = second_obj
+            first_points = get_active_points_for_chart(self.user, self.available_planets_setting)
+            second_points = get_active_points_for_chart(self.t_user, self.available_planets_setting)
+    
+            self.points_deg_ut = []
+            for first, second in zip(first_points, second_points):
+                mean_abs_pos = mean_angle(first["abs_pos"], second["abs_pos"])
+                self.points_deg_ut.append(mean_abs_pos)
+        else:
+            self.points_deg_ut = []
+            for planet in available_celestial_points:
+                self.points_deg_ut.append(self.user.get(planet).abs_pos)
+
         # Make a list of the relative degrees of the points in the graphic.
         self.points_deg = []
-        for planet in available_celestial_points:
-            self.points_deg.append(self.user.get(planet).position)
+        if self.chart_type == "Composite":
+
+            if not second_obj:
+                raise KerykeionException("Second object is required for Composite chart.")
+
+            self.t_user = second_obj
+
+            first_points = get_active_points_for_chart(self.user, self.available_planets_setting)
+            second_points = get_active_points_for_chart(self.t_user, self.available_planets_setting)
+            
+            for first, second in zip(first_points, second_points):
+                #print((first["position"] + second["position"])/2)
+                mean_pos = mean_angle(first["position"], second["position"])
+                self.points_deg.append(mean_pos)
+        else:
+            for planet in available_celestial_points:
+                self.points_deg.append(self.user.get(planet).position)
 
         # Make list of the points sign
         self.points_sign = []
-        for planet in available_celestial_points:
-            self.points_sign.append(self.user.get(planet).sign_num)
+        if self.chart_type == "Composite":
 
+            if not second_obj:
+                raise KerykeionException("Second object is required for Composite chart.")
+
+            self.t_user = second_obj
+            
+            first_points = get_active_points_for_chart(self.user, self.available_planets_setting)
+            second_points = get_active_points_for_chart(self.t_user, self.available_planets_setting)
+
+            for first, second in zip(first_points, second_points):
+                mean_abs_pos = mean_angle(first["abs_pos"], second["abs_pos"])
+                composite_point = calculate_position(mean_abs_pos, first["name"], point_type="Planet")
+                self.points_sign.append(composite_point["sign_num"])
+        else:
+            for planet in available_celestial_points:
+                self.points_sign.append(self.user.get(planet).sign_num)
+        '''
         # Make a list of points if they are retrograde or not.
         self.points_retrograde = []
         for planet in available_celestial_points:
@@ -112,6 +215,10 @@ class KerykeionChartSVG:
         if self.chart_type == "Natal" or self.chart_type == "ExternalNatal":
             natal_aspects_instance = NatalAspects(self.user, new_settings_file=self.new_settings_file)
             self.aspects_list = natal_aspects_instance.relevant_aspects
+
+        if self.chart_type == "Composite":
+            composite_aspects_instance = CompositeAspects(self.user, new_settings_file=self.new_settings_file, kr_object_two=second_obj)
+            self.aspects_list = composite_aspects_instance.relevant_aspects
 
         # TODO: If not second should exit
         if self.chart_type == "Transit" or self.chart_type == "Synastry":
@@ -131,7 +238,7 @@ class KerykeionChartSVG:
             for planet in available_celestial_points:
                 self.t_points_deg.append(self.t_user.get(planet).position)
 
-            # Make list of the poits sign.
+            # Make list of the points sign.
             self.t_points_sign = []
             for planet in available_celestial_points:
                 self.t_points_sign.append(self.t_user.get(planet).sign_num)
@@ -146,8 +253,9 @@ class KerykeionChartSVG:
                 self.t_houses_sign_graph.append(h["sign_num"])
 
         # screen size
-        if self.chart_type == "Natal":
+        if self.chart_type == "Natal" or self.chart_type == "Composite":
             self.screen_width = 772.2
+            #self.full_width = 772.2
         else:
             self.screen_width = 1200
         self.screen_height = 772.2
@@ -254,32 +362,141 @@ class KerykeionChartSVG:
         radius_offset = 18
 
         out = f'<circle cx="{r}" cy="{r}" r="{r - radius_offset}" style="fill: none; stroke: {self.chart_colors_settings["paper_1"]}; stroke-width: 36px; stroke-opacity: .4;"/>'
-        out += f'<circle cx="{r}" cy="{r}" r="{r}" style="fill: none; stroke: {self.chart_colors_settings["zodiac_transit_ring_3"]}; stroke-width: 1px; stroke-opacity: .6;"/>'
+        out += f'<circle cx="{r}" cy="{r}" r="{r}" style="fill: none; stroke: {self.chart_colors_settings["zodiac_transit_ring_3"]}; stroke-width: 1px; stroke-opacity: .3;"/>'
 
         return out
-
+    
     def _degreeRing(self, r) -> str:
         """
         Draws the degree ring.
         """
         out = ""
-        for i in range(72):
-            offset = float(i * 5) - self.user.houses_degree_ut[6]
+        
+        for i in range(360):
+
+            if self.chart_type == "Composite":
+                offset = float(i) - (self.user.houses_degree_ut[6] + self.t_user.houses_degree_ut[6])/2 - (self.user.asc['position'] + self.t_user.asc['position'])/2
+                #Why?
+                #offset = offset + 180
+            else:
+                offset = float(i) - self.user.houses_degree_ut[6] - self.user.asc['position']#10.5
+
             if offset < 0:
                 offset = offset + 360.0
             elif offset > 360:
                 offset = offset - 360.0
-            x1 = sliceToX(0, r - self.c1, offset) + self.c1
-            y1 = sliceToY(0, r - self.c1, offset) + self.c1
-            x2 = sliceToX(0, r + 2 - self.c1, offset) - 2 + self.c1
-            y2 = sliceToY(0, r + 2 - self.c1, offset) - 2 + self.c1
+            if i % 5 == 0:
+                if i % 10 == 0:
+                    if i % 30 == 0:
+                        x1 = sliceToX(0, r - self.c2, offset) + self.c2
+                        y1 = sliceToY(0, r - self.c2, offset) + self.c2
+                        x2 = sliceToX(0, r + 36 - self.c2, offset) - 36 + self.c2
+                        y2 = sliceToY(0, r + 36 - self.c2, offset) - 36 + self.c2
 
-            out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1px; stroke-opacity:.9;"/>'
+                        out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+                    else:
+                        x1 = sliceToX(0, r - self.c2, offset) + self.c2
+                        y1 = sliceToY(0, r - self.c2, offset) + self.c2
+                        x2 = sliceToX(0, r + 15 - self.c2, offset) - 15 + self.c2
+                        y2 = sliceToY(0, r + 15 - self.c2, offset) - 15 + self.c2
+
+                        out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+                else:
+                    x1 = sliceToX(0, r - self.c2, offset) + self.c2
+                    y1 = sliceToY(0, r - self.c2, offset) + self.c2
+                    x2 = sliceToX(0, r + 10 - self.c2, offset) - 10 + self.c2
+                    y2 = sliceToY(0, r + 10 - self.c2, offset) - 10 + self.c2
+
+                    out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+            else:
+                x1 = sliceToX(0, r - self.c2, offset) + self.c2
+                y1 = sliceToY(0, r - self.c2, offset) + self.c2
+                x2 = sliceToX(0, r + 10 - self.c2, offset) - 10 + self.c2
+                y2 = sliceToY(0, r + 10 - self.c2, offset) - 10 + self.c2
+
+                out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1px; stroke-opacity:.2;"/>'
 
         return out
 
+
+
     def _degreeTransitRing(self, r):
         out = ""
+        
+        t_radius = 72
+        o_radius = 36
+
+        for i in range(360):
+            offset = float(i) - self.user.houses_degree_ut[6] - self.user.asc['position']#10.5
+
+            if offset < 0:
+                offset = offset + 360.0
+            elif offset > 360:
+                offset = offset - 360.0
+            if i % 5 == 0:
+                if i % 10 == 0:
+                    if i % 30 == 0:
+                        x1 = sliceToX(0, r - t_radius, offset) + t_radius
+                        y1 = sliceToY(0, r - t_radius, offset) + t_radius
+                        x2 = sliceToX(0, r + 36 - t_radius, offset) - 36 + t_radius
+                        y2 = sliceToY(0, r + 36 - t_radius, offset) - 36 + t_radius
+
+                        out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+                        
+                        '''
+                        x1 = sliceToX(0, r - o_radius, offset) + o_radius
+                        y1 = sliceToY(0, r - o_radius, offset) + o_radius
+                        x2 = sliceToX(0, r + 36 - o_radius, offset) - 36 + o_radius
+                        y2 = sliceToY(0, r + 36 - o_radius, offset) - 36 + o_radius
+
+                        out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+                        '''
+                    else:
+                        x1 = sliceToX(0, r - t_radius, offset) + t_radius
+                        y1 = sliceToY(0, r - t_radius, offset) + t_radius
+                        x2 = sliceToX(0, r + 7.5 - t_radius, offset) - 7.5 + t_radius
+                        y2 = sliceToY(0, r + 7.5 - t_radius, offset) - 7.5 + t_radius
+
+                        out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+
+                        x1 = sliceToX(0, r - o_radius, offset) + o_radius
+                        y1 = sliceToY(0, r - o_radius, offset) + o_radius
+                        x2 = sliceToX(0, r - 7.5 - o_radius, offset) + 7.5 + o_radius
+                        y2 = sliceToY(0, r - 7.5 - o_radius, offset) + 7.5 + o_radius
+
+                        out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+                else:
+                    x1 = sliceToX(0, r - t_radius, offset) + t_radius
+                    y1 = sliceToY(0, r - t_radius, offset) + t_radius
+                    x2 = sliceToX(0, r + 5 - t_radius, offset) - 5 + t_radius
+                    y2 = sliceToY(0, r + 5 - t_radius, offset) - 5 + t_radius
+
+                    out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+
+                    x1 = sliceToX(0, r - o_radius, offset) + o_radius
+                    y1 = sliceToY(0, r - o_radius, offset) + o_radius
+                    x2 = sliceToX(0, r - 5 - o_radius, offset) + 5 + o_radius
+                    y2 = sliceToY(0, r - 5 - o_radius, offset) + 5 + o_radius
+
+                    out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1.5px; stroke-opacity:1;"/>'
+            else:
+                x1 = sliceToX(0, r - t_radius, offset) + t_radius
+                y1 = sliceToY(0, r - t_radius, offset) + t_radius
+                x2 = sliceToX(0, r + 5 - t_radius, offset) - 5 + t_radius
+                y2 = sliceToY(0, r + 5 - t_radius, offset) - 5 + t_radius
+
+                out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1px; stroke-opacity:.2;"/>'
+
+                x1 = sliceToX(0, r - o_radius, offset) + o_radius
+                y1 = sliceToY(0, r - o_radius, offset) + o_radius
+                x2 = sliceToX(0, r - 5 - o_radius, offset) + 5 + o_radius
+                y2 = sliceToY(0, r - 5 - o_radius, offset) + 5 + o_radius
+
+                out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.chart_colors_settings["paper_0"]}; stroke-width: 1px; stroke-opacity:.2;"/>'
+
+        '''
+        out = ""
+        
         for i in range(72):
             offset = float(i * 5) - self.user.houses_degree_ut[6]
             if offset < 0:
@@ -288,10 +505,13 @@ class KerykeionChartSVG:
                 offset = offset - 360.0
             x1 = sliceToX(0, r, offset)
             y1 = sliceToY(0, r, offset)
-            x2 = sliceToX(0, r + 2, offset) - 2
-            y2 = sliceToY(0, r + 2, offset) - 2
-            out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: #F00; stroke-width: 1px; stroke-opacity:.9;"/>'
+            x2 = sliceToX(0, r - 5, offset) + 5
+            y2 = sliceToY(0, r - 5, offset) + 5
 
+            
+            #out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: #000000; stroke-width: 1px; stroke-opacity:1" />'
+            #out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: #000000; stroke-width: 1px; stroke-opacity:1" />'
+        '''
         return out
 
     def _lat2str(self, coord):
@@ -353,27 +573,77 @@ class KerykeionChartSVG:
             out = f"{a:02d}&#176;{b_rounded:02d}&#39;"
         elif type == "1":
             out = f"{a:02d}&#176;"
+        elif type == "4":
+            out = f"{b_rounded:02d}&#39;"
+        elif type == "5":
+            #out = f"{a:02d}&#176;<tspan dx='1' baseline-shift='super' font-size='smaller'>{b_rounded:02d}\'</tspan>"
+            out = f"<tspan><tspan font-size='8.5px' font-weight='bold'>{a:02d}&#176;</tspan><tspan dx='-7' baseline-shift='1.2em' font-size='6px'>{b_rounded:02d}\'</tspan></tspan>"
         else:
-            raise KerykeionException(f"Wrong type: {type}, it must be 1, 2 or 3.")
+            
+            raise KerykeionException(f"Wrong type: {type}, it must be 1, 2, 3, 4 or 5")
+        
         return str(out)
+    
+    def _get_zodiac_symbol(self, sign_num, scale=0.3):
+        zodiac_symbols = ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"]
+        return f'<use xlink:href="#{zodiac_symbols[sign_num]}" x="0" y="0" width="50" height="50" transform="scale({scale})"/>'
+
 
     def _drawAspect(self, r, ar, degA, degB, color):
         """
         Draws svg aspects: ring, aspect ring, degreeA degreeB
         """
-        offset = (int(self.user.houses_degree_ut[6]) / -1) + int(degA)
-        x1 = sliceToX(0, ar, offset) + (r - ar)
-        y1 = sliceToY(0, ar, offset) + (r - ar)
-        offset = (int(self.user.houses_degree_ut[6]) / -1) + int(degB)
-        x2 = sliceToX(0, ar, offset) + (r - ar)
-        y2 = sliceToY(0, ar, offset) + (r - ar)
-        out = f'            <line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {color}; stroke-width: 1; stroke-opacity: .9;"/>'
+        #offset = (int(self.user.houses_degree_ut[6]) / -1) + int(degA) - self.user.asc['position']
+        if self.chart_type == "Composite":
+            houses = -shortest_arc_midpoint(self.user.houses_degree_ut[0], self.t_user.houses_degree_ut[0])
+            composite_asc = shortest_arc_midpoint(self.user.asc['position'], self.t_user.asc['position'])
+            offset = (test_offset + houses + degA - composite_asc) % 360
+            #offset = ((self.user.houses_degree_ut[6] + self.t_user.houses_degree_ut[6]) / -2) + degA - (((self.user.asc['position'] + self.t_user.asc['position']) )/2) #
+            #Why? 
+            #offset = offset + 180
+        else:
+            offset = ((self.user.houses_degree_ut[6]) / -1) + degA - self.user.asc['position']
+        x1 = sliceToX(0, ar - 5, offset) + 5 + (r - ar)
+        y1 = sliceToY(0, ar - 5, offset) + 5 + (r - ar)
+        if self.chart_type == "Composite":
+            houses = -shortest_arc_midpoint(self.user.houses_degree_ut[0], self.t_user.houses_degree_ut[0])
+            composite_asc = shortest_arc_midpoint(self.user.asc['position'], self.t_user.asc['position'])
+            offset = (test_offset + houses + degB - composite_asc) % 360
+            #offset = ((self.user.houses_degree_ut[6] + self.t_user.houses_degree_ut[6]) / -2) + degB - ((self.user.asc['position'] + self.t_user.asc['position']))/2
+            #Why?
+            #offset = offset + 180
+        else:
+            offset = ((self.user.houses_degree_ut[6]) / -1) + degB - self.user.asc['position']
+        x2 = sliceToX(0, ar - 5, offset) + 5 + (r - ar)
+        y2 = sliceToY(0, ar - 5, offset) + 5 + (r - ar)
+
+        out = f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {color}; stroke-width: 1; stroke-opacity: .9;"/>'
+        '''
+        x1 = sliceToX(0, r - self.c3, offset) + self.c3
+        y1 = sliceToY(0, r - self.c3, offset) + self.c3
+        x2 = sliceToX(0, r - 5 - self.c3, offset) + 5 + self.c3
+        y2 = sliceToY(0, r - 5 - self.c3, offset) + 5 + self.c3
+        '''
+        
+        #out += f'<line x1="{x1}" y1="{y1}" x2="{x1-5}" y2="{y1-5}" style="stroke: #000000; stroke-width: 1; stroke-opacity: .9;"/>'
 
         return out
 
     def _zodiacSlice(self, num, r, style, type):
         # pie slices
-        offset = 360 - self.user.houses_degree_ut[6]
+        if self.chart_type == "Composite":
+            #changed
+            #offset =  (360 - self.user.houses_degree_ut[6] - self.t_user.houses_degree_ut[6])/2 
+            #offset =( - self.user.houses_degree_ut[6] - self.t_user.houses_degree_ut[6])/2 #+ self.user.asc['position']#10.5
+            #Why?
+            #offset = 180 - offset
+            #offset = 360 - self.user.houses_degree_ut[6]
+            offset = -shortest_arc_midpoint(self.user.houses_degree_ut[6], self.t_user.houses_degree_ut[6])
+            offset %= 360
+            #print("Slice:",offset)
+            #offset = 360 - offset
+        else:
+            offset = 360 - self.user.houses_degree_ut[6] #+ self.user.asc['position']#10.5
         # check transit
         if self.chart_type == "Transit" or self.chart_type == "Synastry":
             dropin = 0
@@ -382,13 +652,21 @@ class KerykeionChartSVG:
         slice = f'<path d="M{str(r)},{str(r)} L{str(dropin + sliceToX(num, r - dropin, offset))},{str(dropin + sliceToY(num, r - dropin, offset))} A{str(r - dropin)},{str(r - dropin)} 0 0,0 {str(dropin + sliceToX(num + 1, r - dropin, offset))},{str(dropin + sliceToY(num + 1, r - dropin, offset))} z" style="{style}"/>'
 
         # symbols
-        offset = offset + 15
+        if self.chart_type == "Composite":
+            offset = offset + 15 - (self.user.asc['position'] + self.t_user.asc['position'])/2
+            #Why?
+            #offset = offset + 180
+        else:
+            offset = offset + 15 - self.user.asc['position']
         # check transit
         if self.chart_type == "Transit" or self.chart_type == "Synastry":
             dropin = 54
         else:
-            dropin = 18 + self.c1
-        sign = f'<g transform="translate(-16,-16)"><use x="{str(dropin + sliceToX(num, r - dropin, offset))}" y="{str(dropin + sliceToY(num, r - dropin, offset))}" xlink:href="#{type}" /></g>'
+            dropin = 14 + self.c1
+
+        scale = 0.45
+        #f'<g transform="translate(-{12 * scale},-{12 * scale})"><g transform="scale({scale})"><use x="{planet_x * (1/scale)}" y="{planet_y * (1/scale)}" xlink:href="#{self.available_planets_setting[i]["name"]}" /></g></g>'
+        sign = f'<g transform="translate(-{16 * scale},-{16 * scale})"><g transform="scale({scale})"><use x="{str((dropin + sliceToX(num, r - dropin, offset))* (1/scale))}" y="{str((dropin + sliceToY(num, r - dropin, offset))* (1/scale))}" xlink:href="#{type}" /></g></g>'
 
         return slice + "" + sign
 
@@ -400,11 +678,12 @@ class KerykeionChartSVG:
                 + self._zodiacSlice(
                     i,
                     r,
-                    f'fill:{self.chart_colors_settings[f"zodiac_bg_{i}"]}; fill-opacity: 0.5;',
+                    f'fill:{self.chart_colors_settings[f"zodiac_bg_{i}"]}; fill-opacity: 0;',
                     self.zodiac[i]["name"],
                 )
             )
         return output
+    #; fill-opacity: 0.5;
 
     def _makeHouses(self, r):
         path = ""
@@ -418,19 +697,41 @@ class KerykeionChartSVG:
                 t_roff = 36
             else:
                 dropin = self.c3
-                roff = self.c1
+                roff = self.c2
 
             # offset is negative desc houses_degree_ut[6]
-            offset = (int(self.user.houses_degree_ut[int(xr / 2)]) / -1) + int(self.user.houses_degree_ut[i])
+            if self.chart_type == "Composite":
+                avg_houses = shortest_arc_midpoint(self.user.houses_degree_ut[int(xr / 2)], self.t_user.houses_degree_ut[int(xr / 2)])
+                avg_asc = shortest_arc_midpoint(self.user.asc['position'], self.t_user.asc['position'])#((self.user.asc['position'] + self.t_user.asc['position'])) / 2 #
+                avg_house = self.user.houses_degree_ut[i]
+                #avg_house = shortest_arc_midpoint(self.user.houses_degree_ut[i], self.t_user.houses_degree_ut[i])
+                offset =  -avg_houses + avg_house - avg_asc
+                offset %= 360
+                #Why?
+                #offset = offset + 180
+            else:
+                offset = (int(self.user.houses_degree_ut[int(xr / 2)]) / -1) + int(self.user.houses_degree_ut[i]) - self.user.asc['position']#10.5
+
             x1 = sliceToX(0, (r - dropin), offset) + dropin
             y1 = sliceToY(0, (r - dropin), offset) + dropin
-            x2 = sliceToX(0, r - roff, offset) + roff
-            y2 = sliceToY(0, r - roff, offset) + roff
+            if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                #Change for variable
+                x2 = sliceToX(0, r, offset)
+                y2 = sliceToY(0, r, offset) 
+            else:
+                x2 = sliceToX(0, r - roff, offset) + roff
+                y2 = sliceToY(0, r - roff, offset) + roff
 
             if i < (xr - 1):
-                text_offset = offset + int(degreeDiff(self.user.houses_degree_ut[(i + 1)], self.user.houses_degree_ut[i]) / 2)
+                if self.chart_type == "Composite":
+                    text_offset = offset + int(degreeDiff((self.user.houses_degree_ut[(i + 1)] + self.user.houses_degree_ut[(i + 1)])/2, (self.user.houses_degree_ut[i] + self.user.houses_degree_ut[i])/2) / 2)
+                else:
+                    text_offset = offset + int(degreeDiff(self.user.houses_degree_ut[(i + 1)], self.user.houses_degree_ut[i]) / 2)
             else:
-                text_offset = offset + int(degreeDiff(self.user.houses_degree_ut[0], self.user.houses_degree_ut[(xr - 1)]) / 2)
+                if self.chart_type == "Composite":
+                    text_offset = offset + int(degreeDiff((self.user.houses_degree_ut[0] + self.user.houses_degree_ut[0])/ 2, (self.user.houses_degree_ut[(xr - 1)] + self.user.houses_degree_ut[(xr - 1)])/2 ) / 2)
+                else:
+                    text_offset = offset + int(degreeDiff(self.user.houses_degree_ut[0], self.user.houses_degree_ut[(xr - 1)]) / 2)
 
             # mc, asc, dsc, ic
             if i == 0:
@@ -469,12 +770,14 @@ class KerykeionChartSVG:
                 ytext = sliceToY(0, (r - 8), t_text_offset) + 8
 
                 if self.chart_type == "Transit":
-                    path = path + '<text style="fill: #00f; fill-opacity: 0; font-size: 14px"><tspan x="' + str(xtext - 3) + '" y="' + str(ytext + 3) + '">' + str(i + 1) + "</tspan></text>"
-                    path = f"{path}<line x1='{str(t_x1)}' y1='{str(t_y1)}' x2='{str(t_x2)}' y2='{str(t_y2)}' style='stroke: {t_linecolor}; stroke-width: 2px; stroke-opacity:0;'/>"
+                    #path = path + '<text style="fill: #00f; fill-opacity: 0; font-size: 14px"><tspan x="' + str(xtext - 3) + '" y="' + str(ytext + 3) + '">' + str(i + 1) + "</tspan></text>"
+                    #path = f"{path}<line x1='{str(t_x1)}' y1='{str(t_y1)}' x2='{str(t_x2)}' y2='{str(t_y2)}' style='stroke: {t_linecolor}; stroke-width: 2px; stroke-opacity:0;'/>"
+                    path = path + '<text style="fill: #00f; fill-opacity: 0; font-size: 14px"><tspan x="' + str(xtext - 3) + '" y="' + str(ytext + 3) + '">' + "</tspan></text>"
+                    #path = f"{path}<line x1='{str(t_x1)}' y1='{str(t_y1)}' x2='{str(t_x2)}' y2='{str(t_y2)}' style='stroke: {t_linecolor}; stroke-width: 2px; stroke-opacity:1;'/>"
 
                 else:
-                    path = path + '<text style="fill: #00f; fill-opacity: .4; font-size: 14px"><tspan x="' + str(xtext - 3) + '" y="' + str(ytext + 3) + '">' + str(i + 1) + "</tspan></text>"
-                    path = f"{path}<line x1='{str(t_x1)}' y1='{str(t_y1)}' x2='{str(t_x2)}' y2='{str(t_y2)}' style='stroke: {t_linecolor}; stroke-width: 2px; stroke-opacity:.3;'/>"
+                    path = path + '<text style="fill: #00f; fill-opacity: .4; font-size: 14px"><tspan x="' + str(xtext - 3) + '" y="' + str(ytext + 3) + '">' +  "</tspan></text>"
+                    path = f"{path}<line x1='{str(t_x1)}' y1='{str(t_y1)}' x2='{str(t_x2)}' y2='{str(t_y2)}' style='stroke: {t_linecolor}; stroke-width: 1px; stroke-opacity:0;'/>"
 
 
             # if transit
@@ -488,10 +791,272 @@ class KerykeionChartSVG:
 
             xtext = sliceToX(0, (r - dropin), text_offset) + dropin  # was 132
             ytext = sliceToY(0, (r - dropin), text_offset) + dropin  # was 132
-            path = f'{path}<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {linecolor}; stroke-width: 2px; stroke-dasharray:3,2; stroke-opacity:.4;"/>'
-            path = path + '<text style="fill: #f00; fill-opacity: .6; font-size: 14px"><tspan x="' + str(xtext - 3) + '" y="' + str(ytext + 3) + '">' + str(i + 1) + "</tspan></text>"
+            #Houses lines
+            if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                path = f'{path}<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {linecolor}; stroke-width: 1px; stroke-opacity:0.3;"/>'
+            else:
+                path = f'{path}<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {linecolor}; stroke-width: 1px; stroke-opacity:0.3;"/>'
+            #path = path + '<text style="fill: #f00; fill-opacity: 1; font-size: 14px"><tspan x="' + str(xtext - 3) + '" y="' + str(ytext + 3) + '">' + "</tspan></text>"
+
+            # Draw ASC and MC lines
+            for i in range(len(self.available_planets_setting)):
+                if self.available_planets_setting[i]["name"] in ["ASC", "MC"]:
+                    if self.chart_type == "Composite":
+                        pnt_offset = ((self.user.houses_degree_ut[6] + self.t_user.houses_degree_ut[6]) / -2) + (self.points_deg_ut[i]) - (self.user.asc['position'] + self.t_user.asc['position'])/2
+                        #Why?
+                        #pnt_offset = pnt_offset + 180
+                    else:
+                        pnt_offset = ((self.user.houses_degree_ut[6]) / -1) + (self.points_deg_ut[i]) - self.user.asc['position']
+
+                    if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                        #Change for variables
+                        x1 = sliceToX(0, r - 72, pnt_offset) + 72
+                        y1 = sliceToY(0, r - 72, pnt_offset) + 72
+                        arx1 = sliceToX(0, r - 160 , pnt_offset) + 160
+                        ary1 = sliceToY(0, r - 160, pnt_offset) + 160
+                    else:
+                        x1 = sliceToX(0, r - self.c2, pnt_offset) + self.c2
+                        y1 = sliceToY(0, r - self.c2, pnt_offset) + self.c2
+                        arx1 = sliceToX(0, r - self.c3, pnt_offset) + self.c3
+                        ary1 = sliceToY(0, r - self.c3, pnt_offset) + self.c3
+                    
+                    path += f'<line x1="{x1}" y1="{y1}" x2="{arx1}" y2="{ary1}" style="stroke: #000000; stroke-width: 3.5px; stroke-opacity:1" />'
+                    
+                    if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                        icx1 = sliceToX(0, r - 72, pnt_offset + 180) + 72
+                        icy1 = sliceToY(0, r - 72, pnt_offset + 180) + 72
+                        icx2 = sliceToX(0, r - 160, pnt_offset + 180) + 160
+                        icy2 = sliceToY(0, r - 160, pnt_offset + 180) + 160
+                    else:
+                        icx1 = sliceToX(0, r - self.c2, pnt_offset + 180) + self.c2
+                        icy1 = sliceToY(0, r - self.c2, pnt_offset + 180) + self.c2
+                        icx2 = sliceToX(0, r - self.c3, pnt_offset + 180) + self.c3
+                        icy2 = sliceToY(0, r - self.c3, pnt_offset + 180) + self.c3
+
+                    path += f'<line x1="{icx1}" y1="{icy1}" x2="{icx2}" y2="{icy2}" style="stroke: #000000; stroke-width: 3.5px; stroke-opacity:1" />'
+
+                    full_degree = self._dec2deg(self.points_deg[i], type="5")
+                    base_radius = 10
+
+                    if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                        full_degree_radius = base_radius + (r - 160) - 28
+                    else:
+                        full_degree_radius = base_radius + 17
+
+                    # Function to calculate text position
+                    def calculate_text_position(r, radius, offset):
+                        x = sliceToX(0, r - radius, offset) + radius
+                        y = sliceToY(0, r - radius, offset) + radius
+                        return x, y
+
+                    # Function to calculate dy based on angle
+                    def calculate_dy(angle):
+                        if 45 <= angle < 135:
+                            return "0.5em"  # Move up
+                        elif 225 <= angle < 315:
+                            return "0.5em"  # Move down
+                        return "0em"  # No adjustment
+                    
+                    # Add degree text for the main position
+                    full_degree_x, full_degree_y = calculate_text_position(r, full_degree_radius, pnt_offset)
+                    dy_main = calculate_dy(pnt_offset)
+                    path += f'<text x="{full_degree_x}" y="{full_degree_y}" dy="{dy_main}" text-anchor="middle" '
+                    path += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};'
+                    path += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{full_degree}</text>'
+
+                    # Add degree text for the diametrically opposed position
+                    full_degree_x, full_degree_y = calculate_text_position(r, full_degree_radius, pnt_offset + 180)
+                    dy_opposed = calculate_dy((pnt_offset + 180) % 360)
+                    path += f'<text x="{full_degree_x}" y="{full_degree_y}" dy="{dy_opposed}" text-anchor="middle" '
+                    path += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};'
+                    path += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{full_degree}</text>'
+
+                    # Draw transit ASC and MC lines
+
+                    if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                        fraction = 4/5
+
+                        asc = self.t_user.asc['abs_pos'] - self.user.asc['position']
+                        # ASC
+                        x1 = sliceToX(0, r, asc)
+                        y1 = sliceToY(0, r, asc)
+                        arx1 = sliceToX(0, r - 36 , asc) + 36
+                        ary1 = sliceToY(0, r - 36, asc) + 36
+
+                        path += f'<line x1="{x1}" y1="{y1}" x2="{arx1}" y2="{ary1}" style="stroke: #000000; stroke-width: 3.5px; stroke-opacity:1" />'
+
+                        # 'ASC' text
+                        text_x = x1 + (arx1 - x1) * fraction
+                        text_y = y1 + (ary1 - y1) * fraction
+                        path += f'<text x="{text_x}" y="{text_y}" text-anchor="middle" dominant-baseline="central" '
+                        path += f'style="font-family: Arial, sans-serif; font-size: 6px; fill: #000000; '
+                        path += f'stroke: #FFFFFF; stroke-width: 2.5px; paint-order: stroke fill;">ASC</text>'
+
+                        # DSC
+                        x1 = sliceToX(0, r, asc + 180)
+                        y1 = sliceToY(0, r, asc + 180)
+                        arx1 = sliceToX(0, r - 36 , asc + 180) + 36
+                        ary1 = sliceToY(0, r - 36, asc + 180) + 36
+
+                        path += f'<line x1="{x1}" y1="{y1}" x2="{arx1}" y2="{ary1}" style="stroke: #000000; stroke-width: 3.5px; stroke-opacity:1" />'
+                        
+                        # 'DSC' text
+                        text_x = x1 + (arx1 - x1) * fraction
+                        text_y = y1 + (ary1 - y1) * fraction
+                        path += f'<text x="{text_x}" y="{text_y}" text-anchor="middle" dominant-baseline="central" '
+                        path += f'style="font-family: Arial, sans-serif; font-size: 6px; fill: #000000; '
+                        path += f'stroke: #FFFFFF; stroke-width: 2.5px; paint-order: stroke fill;">DSC</text>'
+
+                        #mc = ((self.t_user.houses_degree_ut[6]) / -1) + self.t_user.mc['abs_pos'] - self.user.asc['position']
+                        mc = self.t_user.mc['abs_pos'] - self.user.asc['position']
+                        # MC
+                        x1 = sliceToX(0, r, mc)
+                        y1 = sliceToY(0, r, mc)
+                        arx1 = sliceToX(0, r - 36 , mc) + 36
+                        ary1 = sliceToY(0, r - 36, mc) + 36
+
+                        path += f'<line x1="{x1}" y1="{y1}" x2="{arx1}" y2="{ary1}" style="stroke: #000000; stroke-width: 3.5px; stroke-opacity:1" />'
+
+                        # 'MC' text
+                        text_x = x1 + (arx1 - x1) * fraction
+                        text_y = y1 + (ary1 - y1) * fraction
+                        path += f'<text x="{text_x}" y="{text_y}" text-anchor="middle" dominant-baseline="central" '
+                        path += f'style="font-family: Arial, sans-serif; font-size: 6px; fill: #000000; '
+                        path += f'stroke: #FFFFFF; stroke-width: 2.5px; paint-order: stroke fill;">MC</text>'
+
+                        # IC
+                        x1 = sliceToX(0, r, mc + 180)
+                        y1 = sliceToY(0, r, mc + 180)
+                        arx1 = sliceToX(0, r - 36 , mc + 180) + 36
+                        ary1 = sliceToY(0, r - 36, mc + 180) + 36
+
+                        path += f'<line x1="{x1}" y1="{y1}" x2="{arx1}" y2="{ary1}" style="stroke: #000000; stroke-width: 3.5px; stroke-opacity:1" />'
+
+                        # 'MC' text
+                        text_x = x1 + (arx1 - x1) * fraction
+                        text_y = y1 + (ary1 - y1) * fraction
+                        path += f'<text x="{text_x}" y="{text_y}" text-anchor="middle" dominant-baseline="central" '
+                        path += f'style="font-family: Arial, sans-serif; font-size: 6px; fill: #000000; '
+                        path += f'stroke: #FFFFFF; stroke-width: 2.5px; paint-order: stroke fill;">IC</text>'
+
+                        full_degree = self._dec2deg(self.t_user.asc['position'], type="5")
+
+                        full_degree_x, full_degree_y = calculate_text_position(r, full_degree_radius - 16, asc)
+                        dy_main = calculate_dy(asc)
+                        path += f'<text x="{full_degree_x}" y="{full_degree_y}" dy="{dy_main}" text-anchor="middle" '
+                        path += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};'
+                        path += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{full_degree}</text>'
+
+                        # Add degree text for the diametrically opposed position
+                        full_degree_x, full_degree_y = calculate_text_position(r, full_degree_radius - 16, asc + 180)
+                        dy_opposed = calculate_dy((asc + 180) % 360)
+                        path += f'<text x="{full_degree_x}" y="{full_degree_y}" dy="{dy_opposed}" text-anchor="middle" '
+                        path += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};'
+                        path += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{full_degree}</text>'
+
+                        full_degree = self._dec2deg(self.t_user.mc['position'], type="5")
+
+                        full_degree_x, full_degree_y = calculate_text_position(r, full_degree_radius - 16, mc)
+                        #dy_main = calculate_dy(mc)
+                        dy_main = 0
+                        path += f'<text x="{full_degree_x}" y="{full_degree_y}" dy="{dy_main}" text-anchor="middle" '
+                        path += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};'
+                        path += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{full_degree}</text>'
+
+                        # Add degree text for the diametrically opposed position
+                        full_degree_x, full_degree_y = calculate_text_position(r, full_degree_radius - 16, mc + 180)
+                        dy_opposed = calculate_dy((mc + 180) % 360)
+                        path += f'<text x="{full_degree_x}" y="{full_degree_y}" dy="{dy_opposed}" text-anchor="middle" '
+                        path += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};'
+                        path += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{full_degree}</text>'
+                        
+
+
 
         return path
+
+    def draw_planet_info(self, i, offset, r, zodiac_sign=None):
+        
+        degree = self._dec2deg(self.points_deg[i], type="1")
+        minute = self._dec2deg(self.points_deg[i], type="4")
+
+        zodiac_symbol = self._get_zodiac_symbol(zodiac_sign or self.points_sign[i], scale=0.25)
+        
+        if self.chart_type == "Transit" or self.chart_type == "Synastry":
+            #Change for variables
+            base_radius = (160 + 72)/2
+        else:
+            base_radius = (self.c2 + self.c3) / 2
+
+        degree_radius = base_radius
+        minute_radius = base_radius + 30
+        symbol_radius = base_radius + 15
+        
+        degree_x = sliceToX(0, r - degree_radius, offset) + degree_radius 
+        degree_y = sliceToY(0, r - degree_radius, offset) + degree_radius 
+        symbol_x = sliceToX(0, r - symbol_radius, offset) + symbol_radius
+        symbol_y = sliceToY(0, r - symbol_radius, offset) + symbol_radius
+        minute_x = sliceToX(0, r - minute_radius, offset) + minute_radius 
+        minute_y = sliceToY(0, r - minute_radius, offset) + minute_radius
+  
+        output = f'<g filter="url(#whiteOutline)">'
+        output += f'<text x="{degree_x}" y="{degree_y}" text-anchor="middle" '
+        output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};">{degree}</text>'
+        output += '</g>'
+        
+        symbol_x_offset = -5
+        symbol_y_offset = -5
+        output += f'<g transform="translate({symbol_x + symbol_x_offset}, {symbol_y + symbol_y_offset})">{zodiac_symbol}</g>'
+
+        output += f'<g filter="url(#whiteOutline)">'
+        output += f'<text x="{minute_x}" y="{minute_y}" text-anchor="middle" '
+        output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 8px; fill: {self.available_planets_setting[i]["color"]};">{minute}</text>'
+        output += '</g>'
+
+        return output
+
+    def draw_transit_planet_info(self, i, offset, r, zodiac_sign=None):
+        
+        degree = self._dec2deg(self.t_points_deg[i], type="1")
+        minute = self._dec2deg(self.t_points_deg[i], type="4")
+
+        zodiac_symbol = self._get_zodiac_symbol(zodiac_sign or self.t_points_sign[i], scale=0.25)
+        
+        if self.chart_type == "Transit" or self.chart_type == "Synastry":
+            #Change for variables
+            base_radius = r - 280
+        else:
+            base_radius = (self.c2 + self.c3) / 2
+
+        degree_radius = base_radius + 30
+        minute_radius = base_radius 
+        symbol_radius = base_radius + 15
+        
+        degree_x = sliceToX(0, r - degree_radius, offset) + degree_radius 
+        degree_y = sliceToY(0, r - degree_radius, offset) + degree_radius 
+        symbol_x = sliceToX(0, r - symbol_radius, offset) + symbol_radius
+        symbol_y = sliceToY(0, r - symbol_radius, offset) + symbol_radius
+        minute_x = sliceToX(0, r - minute_radius, offset) + minute_radius 
+        minute_y = sliceToY(0, r - minute_radius, offset) + minute_radius
+  
+        output = f'<g filter="url(#whiteOutline)">'
+        output += f'<text x="{degree_x}" y="{degree_y}" text-anchor="middle" '
+        #output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};">{degree}</text>'
+        output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: #cc5500;">{degree}</text>'
+        output += '</g>'
+        
+        symbol_x_offset = -5
+        symbol_y_offset = -5
+        output += f'<g transform="translate({symbol_x + symbol_x_offset}, {symbol_y + symbol_y_offset})">{zodiac_symbol}</g>'
+
+        output += f'<g filter="url(#whiteOutline)">'
+        output += f'<text x="{minute_x}" y="{minute_y}" text-anchor="middle" '
+        #output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 8px; fill: {self.available_planets_setting[i]["color"]};">{minute}</text>'
+        output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 8px; fill: #cc5500;">{minute}</text>'
+        output += '</g>'
+
+        return output
+
 
     def _value_element_from_planet(self, i):
         """
@@ -520,12 +1085,14 @@ class KerykeionChartSVG:
         elif ele == "water":
             self.water = self.water + self.available_planets_setting[i]["element_points"] + extra_points
 
+  
     def _make_planets(self, r):
         planets_degut = {}
+        #print(self.available_planets_setting)
         diff = range(len(self.available_planets_setting))
-
+        
         for i in range(len(self.available_planets_setting)):
-            if self.available_planets_setting[i]["is_active"] == 1:
+            if self.available_planets_setting[i]["is_active"] == 1 and self.available_planets_setting[i]["name"] not in ["ASC", "MC"]:
                 # list of planets sorted by degree
                 logging.debug(f"planet: {i}, degree: {self.points_deg_ut[i]}")
                 planets_degut[self.points_deg_ut[i]] = i
@@ -540,7 +1107,7 @@ class KerykeionChartSVG:
         planets_degrouped = {}
         groups = []
         planets_by_pos = list(range(len(planets_degut)))
-        planet_drange = 3.4
+        planet_drange = 4.75
         # get groups closely together
         group_open = False
         for e in range(len(keys)):
@@ -572,148 +1139,300 @@ class KerykeionChartSVG:
                 if group_open:
                     groups[-1].append([e, diffa, diffb, self.available_planets_setting[planets_degut[keys[e]]]["label"]])
                 group_open = False
-
+        
         def zero(x):
             return 0
 
         planets_delta = list(map(zero, range(len(self.available_planets_setting))))
+        
+        # First, draw all the lines
+        for e in range(len(keys)):
+            i = planets_degut[keys[e]]
 
+            if self.chart_type == "Composite":
+                houses = -shortest_arc_midpoint(self.user.houses_degree_ut[0], self.t_user.houses_degree_ut[0])
+                composite_asc = shortest_arc_midpoint(self.user.asc['position'], self.t_user.asc['position'])
+                planets_deg = self.points_deg_ut[i] + planets_delta[e]
+                pnt_offset = (test_offset + houses + planets_deg - composite_asc) % 360
+                #pnt_offset = (((self.user.houses_degree_ut[6] + self.t_user.houses_degree_ut[6])) / -2) + (self.points_deg_ut[i] + planets_delta[e]) - ((self.user.asc['position'] + self.t_user.asc['position'])%180)/2
+                #Why?
+                #pnt_offset = pnt_offset + 180
+            else:
+                pnt_offset = ((self.user.houses_degree_ut[6]) / -1) + (self.points_deg_ut[i] + planets_delta[e]) - self.user.asc['position']
+
+            if self.available_planets_setting[i]["name"] not in ["ASC", "MC"]:
+                # Inner line
+                if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                    x1 = sliceToX(0, r - 160, pnt_offset) + 160
+                    y1 = sliceToY(0, r - 160, pnt_offset) + 160
+                    x2 = sliceToX(0, r - 5 - 160, pnt_offset) + 5 + 160
+                    y2 = sliceToY(0, r - 5 - 160, pnt_offset) + 5 + 160
+                else:
+                    x1 = sliceToX(0, r - self.c3, pnt_offset) + self.c3
+                    y1 = sliceToY(0, r - self.c3, pnt_offset) + self.c3
+                    x2 = sliceToX(0, r - 5 - self.c3, pnt_offset) + 5 + self.c3
+                    y2 = sliceToY(0, r - 5 - self.c3, pnt_offset) + 5 + self.c3
+
+                output += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.available_planets_setting[i]["color"]}; stroke-width: 1px; stroke-opacity:1" />'
+                
+                # Outer line
+                if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                    x1 = sliceToX(0, r - 72, pnt_offset) + 72
+                    y1 = sliceToY(0, r - 72, pnt_offset) + 72
+                    x2 = sliceToX(0, r - 5 - 72, pnt_offset) + 5 + 72
+                    y2 = sliceToY(0, r - 5 - 72, pnt_offset) + 5 + 72
+                else:
+                    x1 = sliceToX(0, r - self.c2, pnt_offset) + self.c2
+                    y1 = sliceToY(0, r - self.c2, pnt_offset) + self.c2
+                    x2 = sliceToX(0, r - 5 - self.c2, pnt_offset) + 5 + self.c2
+                    y2 = sliceToY(0, r - 5 - self.c2, pnt_offset) + 5 + self.c2
+
+                output += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.available_planets_setting[i]["color"]}; stroke-width: 1.5px; stroke-opacity:1" />'
+        
         # print groups
         # print planets_by_pos
         for a in range(len(groups)):
             # Two grouped planets
-            if len(groups[a]) == 2:
-                next_to_a = groups[a][0][0] - 1
-                if groups[a][1][0] == (len(planets_by_pos) - 1):
-                    next_to_b = 0
-                else:
-                    next_to_b = groups[a][1][0] + 1
-                # if both planets have room
-                if (groups[a][0][1] > (2 * planet_drange)) & (groups[a][1][2] > (2 * planet_drange)):
-                    planets_delta[groups[a][0][0]] = -(planet_drange - groups[a][0][2]) / 2
-                    planets_delta[groups[a][1][0]] = +(planet_drange - groups[a][0][2]) / 2
-                # if planet a has room
-                elif groups[a][0][1] > (2 * planet_drange):
-                    planets_delta[groups[a][0][0]] = -planet_drange
-                # if planet b has room
-                elif groups[a][1][2] > (2 * planet_drange):
-                    planets_delta[groups[a][1][0]] = +planet_drange
+            logging.debug(f"Planets by position: {planets_by_pos}")
 
-                # if planets next to a and b have room move them
-                elif (planets_by_pos[next_to_a][1] > (2.4 * planet_drange)) & (planets_by_pos[next_to_b][2] > (2.4 * planet_drange)):
-                    planets_delta[(next_to_a)] = groups[a][0][1] - planet_drange * 2
-                    planets_delta[groups[a][0][0]] = -planet_drange * 0.5
-                    planets_delta[next_to_b] = -(groups[a][1][2] - planet_drange * 2)
-                    planets_delta[groups[a][1][0]] = +planet_drange * 0.5
+            if isinstance(groups[a], list) and len(groups[a]) > 0 and isinstance(groups[a][0], list):
+                if len(groups[a]) == 2:
 
-                # if planet next to a has room move them
-                elif planets_by_pos[next_to_a][1] > (2 * planet_drange):
-                    planets_delta[(next_to_a)] = groups[a][0][1] - planet_drange * 2.5
-                    planets_delta[groups[a][0][0]] = -planet_drange * 1.2
+                    logging.debug(f"Planets by position: {planets_by_pos}")
+                    #print(groups[a][0][0], groups[a][0][-1])
+                    next_to_a = groups[a][0][0] - 1
+                    if groups[a][1][0] == (len(planets_by_pos) - 1):
+                        next_to_b = 0
+                    else:
+                        next_to_b = groups[a][1][0] + 1
+                    # if both planets have room
+                    if (groups[a][0][1] > (2 * planet_drange)) & (groups[a][1][2] > (2 * planet_drange)):
+                        planets_delta[groups[a][0][0]] = -(planet_drange - groups[a][0][2]) #/ 2
+                        planets_delta[groups[a][1][0]] = +(planet_drange - groups[a][0][2]) #/ 2
+                        #planets_delta[groups[a][0][0]] = (planet_drange + groups[a][0][2]) #/ 2
+                        #planets_delta[groups[a][1][0]] = +(planet_drange + 2*groups[a][0][2]) #/ 2
+                    # if planet a has room
+                    elif groups[a][0][1] > (2 * planet_drange):
+                        planets_delta[groups[a][0][0]] = -planet_drange
+                    # if planet b has room
+                    elif groups[a][1][2] > (2 * planet_drange):
+                        planets_delta[groups[a][1][0]] = +planet_drange
 
-                # if planet next to b has room move them
-                elif planets_by_pos[next_to_b][2] > (2 * planet_drange):
-                    planets_delta[next_to_b] = -(groups[a][1][2] - planet_drange * 2.5)
-                    planets_delta[groups[a][1][0]] = +planet_drange * 1.2
+                    # if planets next to a and b have room move them
+                    elif (planets_by_pos[next_to_a][1] > (2.4 * planet_drange)) & (planets_by_pos[next_to_b][2] > (2.4 * planet_drange)):
+                        planets_delta[(next_to_a)] = groups[a][0][1] - planet_drange * 2
+                        planets_delta[groups[a][0][0]] = -planet_drange * 0.5
+                        planets_delta[next_to_b] = -(groups[a][1][2] - planet_drange * 2)
+                        planets_delta[groups[a][1][0]] = +planet_drange * 0.5
 
-            # Three grouped planets or more
-            xl = len(groups[a])
-            if xl >= 3:
-                available = groups[a][0][1]
-                for f in range(xl):
-                    available += groups[a][f][2]
-                need = (3 * planet_drange) + (1.2 * (xl - 1) * planet_drange)
-                leftover = available - need
-                xa = groups[a][0][1]
-                xb = groups[a][(xl - 1)][2]
+                    # if planet next to a has room move them
+                    elif planets_by_pos[next_to_a][1] > (2 * planet_drange):
+                        planets_delta[(next_to_a)] = groups[a][0][1] - planet_drange * 2.5
+                        planets_delta[groups[a][0][0]] = -planet_drange * 1.2
 
-                # center
-                if (xa > (need * 0.5)) & (xb > (need * 0.5)):
-                    startA = xa - (need * 0.5)
-                # position relative to next planets
-                else:
-                    startA = (leftover / (xa + xb)) * xa
-                    startB = (leftover / (xa + xb)) * xb
+                    # if planet next to b has room move them
+                    elif planets_by_pos[next_to_b][2] > (2 * planet_drange):
+                        planets_delta[next_to_b] = -(groups[a][1][2] - planet_drange * 2.5)
+                        planets_delta[groups[a][1][0]] = +planet_drange * 1.2
+                
+                # Three grouped planets or more
+                xl = len(groups[a])
+                if xl >= 3:
+                    available = groups[a][0][1]
+                    for f in range(xl):
+                        available += groups[a][f][2]
+                    #need = (3 * planet_drange) + (1.2 * (xl - 1) * planet_drange)
+                    need = (3 * planet_drange) + (1.5 * (xl - 1) * planet_drange)
+                    leftover = available - need
+                    xa = groups[a][0][1]
+                    xb = groups[a][(xl - 1)][2]
 
-                if available > need:
-                    planets_delta[groups[a][0][0]] = startA - groups[a][0][1] + (1.5 * planet_drange)
-                    for f in range(xl - 1):
-                        planets_delta[groups[a][(f + 1)][0]] = 1.2 * planet_drange + planets_delta[groups[a][f][0]] - groups[a][f][2]
+                    # center
+                    #if (xa > (need * 0.5)) & (xb > (need * 0.5)):
+                    #    startA = xa - (need * 0.5)
+                    if (xa > (need )) & (xb > (need )):
+                        startA = xa - (need)
+                    # position relative to next planets
+                    else:
+                        startA = (leftover / (xa + xb)) * xa
+                        startB = (leftover / (xa + xb)) * xb
 
+                    if available > need:
+                        #planets_delta[groups[a][0][0]] = startA - groups[a][0][1] + (1.5 * planet_drange)
+                        planets_delta[groups[a][0][0]] = startA - groups[a][0][1] + (3 * planet_drange)
+                        for f in range(xl - 1):
+                            planets_delta[groups[a][(f + 1)][0]] = 1.5 * planet_drange + planets_delta[groups[a][f][0]] - groups[a][f][2]
+                            #planets_delta[groups[a][(f + 1)][0]] = 1.2 * planet_drange + planets_delta[groups[a][f][0]] - groups[a][f][2]
+                    
+                groups = []
+                current_group = []
+                for e in range(len(keys)):
+                    if e == 0 or degreeDiff(keys[e], keys[e-1]) > planet_drange:
+                        if current_group:
+                            groups.append(current_group)
+                        current_group = [e]
+                    else:
+                        current_group.append(e)
+                if current_group:
+                    groups.append(current_group)
+            else:
+                #logging.warning(f"Unexpected group structure: {groups[a]}")
+                continue
+        
+        # Apply spacing to all groups
+            for group in groups:
+                if len(group) > 1:
+                    center = sum(self.points_deg_ut[planets_degut[keys[i]]] for i in group) / len(group)
+                    for i, planet_index in enumerate(group):
+                        offset = ((i - (len(group) - 1) / 2) * planet_drange)
+                        planets_delta[planet_index] = offset
+        
+        for group in groups:
+            if len(group) > 1:
+                base_offset = -planet_drange/2
+                for i, planet_index in enumerate(group):
+                    offset = base_offset + (i * planet_drange)
+                    planets_delta[planet_index] = offset
+                base_offset += len(group) * planet_drange
+        
+        
+
+
+        '''
+        def adjust_planet_positions(self, planets_by_pos, min_distance, clockwise_offset):
+            adjusted_positions = []
+            for planet_info in planets_by_pos:
+                i, diffa, diffb = planet_info
+                original_position = self.points_deg_ut[i]
+                position = original_position
+                overlapped = False
+                overlap_count = 0
+                
+                for adj_pos in adjusted_positions:
+                    if abs(position - adj_pos) % 360 < min_distance:
+                        overlapped = True
+                        overlap_count += 1
+                
+                if overlapped:
+                    # Move clockwise and add a small separation for each overlapping planet
+                    position = (position - clockwise_offset - (overlap_count * 1)) % 360
+                
+                adjusted_positions.append(position)
+                planet_info.append(position)  # Add final adjusted position to planet_info
+            
+            return planets_by_pos
+
+        # In your _make_planets method:
+        min_angular_distance = 5  # Minimum distance between symbols in degrees
+        clockwise_offset = -5  # Degrees to move all planets clockwise
+
+        # Sort planets by their original position
+        sorted_planets = sorted(planets_by_pos, key=lambda x: self.points_deg_ut[x[0]])
+
+        # Adjust positions
+        adjusted_planets = adjust_planet_positions(self, sorted_planets, min_angular_distance, clockwise_offset)
+        
+        for planet_info in adjusted_planets:
+            i, diffa, diffb, adjusted_position = planet_info
+            self.points_deg_ut[i] = adjusted_position
+        '''
+
+
+        #print("1",shortest_arc_midpoint(0, 270))
+        #print("2",shortest_arc_midpoint(360, 270))
+
+        #for planet_info in adjusted_planets:
+        #    i, diffa, diffb, _ = planet_info
+        # Then, draw all the planet symbols
         for e in range(len(keys)):
             i = planets_degut[keys[e]]
-
-            # coordinates
-            if self.chart_type == "Transit" or self.chart_type == "Synastry":
-                if 22 < i < 27:
-                    rplanet = 76
-                elif switch == 1:
-                    rplanet = 110
-                    switch = 0
-                else:
-                    rplanet = 130
-                    switch = 1
+            
+            if self.chart_type == "Composite":
+                houses = -shortest_arc_midpoint(self.user.houses_degree_ut[0], self.t_user.houses_degree_ut[0])
+                composite_asc = shortest_arc_midpoint(self.user.asc['position'], self.t_user.asc['position'])
+                planets_deg = self.points_deg_ut[i] + planets_delta[e]
+                pnt_offset = (test_offset + houses + planets_deg - composite_asc) % 360
+                #print(self.planets_settings[i]["name"], "Points_deg_ut" ,self.points_deg_ut[i], "Points_deg:", self.points_deg[i], "Offset:", pnt_offset)
+                #print(self.planets_settings[i]["name"], "1st", self.user.houses_degree_ut[0], "2nd:", self.t_user.houses_degree_ut[0], "Houses:", houses, "Degrees:", planets_deg, "ASC:", composite_asc, "Offset:", pnt_offset)
             else:
-                # if 22 < i < 27 it is asc,mc,dsc,ic (angles of chart)
-                # put on special line (rplanet is range from outer ring)
-                amin, bmin, cmin = 0, 0, 0
-                if self.chart_type == "ExternalNatal":
-                    amin = 74 - 10
-                    bmin = 94 - 10
-                    cmin = 40 - 10
-
-                if 22 < i < 27:
-                    rplanet = 40 - cmin
-                elif switch == 1:
-                    rplanet = 74 - amin
-                    switch = 0
-                else:
-                    rplanet = 94 - bmin
-                    switch = 1
-
-            rtext = 45
-
-            offset = (int(self.user.houses_degree_ut[6]) / -1) + int(self.points_deg_ut[i] + planets_delta[e])
-            trueoffset = (int(self.user.houses_degree_ut[6]) / -1) + int(self.points_deg_ut[i])
-
-            planet_x = sliceToX(0, (r - rplanet), offset) + rplanet
-            planet_y = sliceToY(0, (r - rplanet), offset) + rplanet
-            if self.chart_type == "Transit" or self.chart_type == "Synastry":
-                scale = 0.8
-                
-            elif self.chart_type == "ExternalNatal":
-                scale = 0.8
-                # line1
-                x1 = sliceToX(0, (r - self.c3), trueoffset) + self.c3
-                y1 = sliceToY(0, (r - self.c3), trueoffset) + self.c3
-                x2 = sliceToX(0, (r - rplanet - 30), trueoffset) + rplanet + 30
-                y2 = sliceToY(0, (r - rplanet - 30), trueoffset) + rplanet + 30
-                color = self.available_planets_setting[i]["color"]
-                output += (
-                    '<line x1="%s" y1="%s" x2="%s" y2="%s" style="stroke-width:1px;stroke:%s;stroke-opacity:.3;"/>\n'
-                    % (x1, y1, x2, y2, color)
-                )
-                # line2
-                x1 = sliceToX(0, (r - rplanet - 30), trueoffset) + rplanet + 30
-                y1 = sliceToY(0, (r - rplanet - 30), trueoffset) + rplanet + 30
-                x2 = sliceToX(0, (r - rplanet - 10), offset) + rplanet + 10
-                y2 = sliceToY(0, (r - rplanet - 10), offset) + rplanet + 10
-                output += (
-                    '<line x1="%s" y1="%s" x2="%s" y2="%s" style="stroke-width:1px;stroke:%s;stroke-opacity:.5;"/>\n'
-                    % (x1, y1, x2, y2, color)
-                )
-                
+                pnt_offset = ((self.user.houses_degree_ut[6]) / -1) + (self.points_deg_ut[i] + planets_delta[e]) - self.user.asc['position']
+            '''
+            if self.chart_type == "Composite":
+                #print(self.points_deg_ut[i])
+                houses = ((self.user.houses_degree_ut[6] + self.t_user.houses_degree_ut[6])/ -2)
+                composite_asc = (self.user.asc['position'] + self.t_user.asc['position']) / 2
+                planets_deg = self.points_deg_ut[i] + planets_delta[e]
+                pnt_offset = houses + planets_deg - composite_asc % 360 
+                print(self.planets_settings[i]["name"], "1st",self.user.houses_degree_ut[6],"2nd:",self.t_user.houses_degree_ut[6], "Houses:", houses, "Degrees:", planets_deg, "ASC:", composite_asc)
+                #print(self.planets_settings[i]["name"], "Points_deg_ut" ,self.points_deg_ut[i], "Points_deg:", self.points_deg[i], "Offset:", pnt_offset, "Abs:", abs(pnt_offset +180))
+                # Why?  
+                #pnt_offset = pnt_offset + 180
+            
             else:
-                scale = 1
-            # output planet
-            output += f'<g transform="translate(-{12 * scale},-{12 * scale})"><g transform="scale({scale})"><use x="{planet_x * (1/scale)}" y="{planet_y * (1/scale)}" xlink:href="#{self.available_planets_setting[i]["name"]}" /></g></g>'
+                pnt_offset = ((self.user.houses_degree_ut[6]) / -1) + (self.points_deg_ut[i] + planets_delta[e]) - self.user.asc['position']
+            
+            if self.chart_type == "Composite":
+                pnt_offset = ((self.user.houses_degree_ut[6] + self.t_user.houses_degree_ut[6])/ -2) + (self.points_deg_ut[i] + planets_delta[e]) - (self.user.asc['position'] + self.t_user.asc['position'] )/2 
+                
+                # Check if the offset needs to be adjusted
+                composite_asc = (self.user.asc['position'] + self.t_user.asc['position']) / 2
+                if abs(pnt_offset - composite_asc) > 180:
+                    pnt_offset += 180 if pnt_offset < composite_asc else -180
+                
+                pnt_offset %= 360  # Ensure the offset is within 0-360 range
+                
+                print(self.planets_settings[i]["name"], "Points_deg_ut" ,self.points_deg_ut[i], "Points_deg:", self.points_deg[i], "Offset:", pnt_offset)
+            else:
+                pnt_offset = ((self.user.houses_degree_ut[6]) / -1) + (self.points_deg_ut[i] + planets_delta[e]) - self.user.asc['position']
+            '''
+            if self.available_planets_setting[i]["name"] not in ["ASC", "MC"]:
+                if self.chart_type == "Transit" or self.chart_type == "Synastry":
+                    rplanet = 120 - self.c1 #if switch == 0 else 110
+                    #switch = 1 - switch
+                else:
+                    rplanet = 74 - self.c1
+                
+                dist = 0.75
+                planet_x = sliceToX(0, (r - dist * rplanet), pnt_offset) + dist * rplanet
+                planet_y = sliceToY(0, (r - dist * rplanet), pnt_offset) + dist * rplanet
+                #print(self.available_planets_setting[i]["name"],planet_x, planet_y)
+                scale = 0.7 if self.chart_type == "Transit" or self.chart_type == "Synastry" else 0.75
+
+                output += f'<g transform="translate(-{12 * scale},-{12 * scale})"><g transform="scale({scale})"><use x="{planet_x * (1/scale)}" y="{planet_y * (1/scale)}" xlink:href="#{self.available_planets_setting[i]["name"]}" /></g></g>'
+                output += self.draw_planet_info(i, pnt_offset, r)
+                #planet_name = self.available_planets_setting[i]["name"]
+
+            if self.points_retrograde[i] == True or (self.available_planets_setting[i]["name"] in ["Mean_Node", "South_Node"] and self.points_retrograde[10] == True):
+                retro_offsets = {
+                    "Mean_Node": (8, 6),
+                    "South_Node": (6, 6),
+                    "Mercury": (2, 7),
+                    "Venus": (4, 7),
+                    "Mars": (4, 7),
+                    "Jupiter": (7, 8),
+                    "Saturn": (5, 7),
+                    "Uranus": (4, 7),
+                    "Neptune": (6, 8),
+                    "Pluto": (4, 7),
+                }
+                planet_name = self.available_planets_setting[i]["name"]
+                
+                # Always draw retrograde for nodes
+                if planet_name in ["Mean_Node", "South_Node"] or self.chart_type != "Composite":
+                    retro_x_offset, retro_y_offset = retro_offsets.get(planet_name, (4, 7))
+                    retro_x = sliceToX(0, (r - dist * rplanet), pnt_offset) + dist * rplanet + retro_x_offset
+                    retro_y = sliceToY(0, (r - dist * rplanet), pnt_offset) + dist * rplanet + retro_y_offset
+                    output += f'<text x="{retro_x}" y="{retro_y}" text-anchor="middle" dominant-baseline="central" '
+                    output += f'style="font-family: Arial, sans-serif; font-size: 4px; font-weight: bold; '
+                    output += f'fill: {self.available_planets_setting[i]["color"]}; '
+                    output += f'stroke: #FFFFFF; stroke-width: 1.5px; paint-order: stroke fill;">R</text>'               
 
         # make transit degut and display planets
         if self.chart_type == "Transit" or self.chart_type == "Synastry":
             group_offset = {}
             t_planets_degut = {}
             if self.chart_type == "Transit":
-                list_range = len(self.available_planets_setting) - 4
+                list_range = len(self.available_planets_setting) - 2
             else:
                 list_range = len(self.available_planets_setting)
             for i in range(list_range):
@@ -764,6 +1483,7 @@ class KerykeionChartSVG:
             for e in range(len(t_keys)):
                 i = t_planets_degut[t_keys[e]]
 
+                '''
                 if 22 < i < 27:
                     rplanet = 9
                 elif switch == 1:
@@ -772,27 +1492,69 @@ class KerykeionChartSVG:
                 else:
                     rplanet = 26
                     switch = 1
+                '''
 
-                zeropoint = 360 - self.user.houses_degree_ut[6]
-                t_offset = zeropoint + self.t_points_deg_ut[i]
+                rplanet = 13
+
+                zeropoint = 360 - self.user.houses_degree_ut[6] #- self.user.asc['position']
+                t_offset = zeropoint + self.t_points_deg_ut[i] - self.user.asc['position']
                 if t_offset > 360:
                     t_offset = t_offset - 360
                 planet_x = sliceToX(0, (r - rplanet), t_offset) + rplanet
                 planet_y = sliceToY(0, (r - rplanet), t_offset) + rplanet
-                output += f'<g transform="translate(-6,-6)"><g transform="scale(0.5)"><use x="{planet_x*2}" y="{planet_y*2}" xlink:href="#{self.available_planets_setting[i]["name"]}" /></g></g>'
+                scale = 0.7
+                #output += f'<g transform="translate(-6,-6)"><g transform="scale({scale})"><use x="{planet_x*1/scale}" y="{planet_y*1/scale}"  xlink:href="#{self.available_planets_setting[i]["name"]}" class="transit-planet" /></g></g>'
+                output += f'<g transform="translate(-6,-6)"><g transform="scale({scale})"><use x="{planet_x*1/scale}" y="{planet_y*1/scale}" xlink:href="#{self.available_planets_setting[i]["name"]}" class="transit-planet" style="--planet-color: #ec602f ;" /></g></g>'
+
+                output += self.draw_transit_planet_info(i, t_offset, r)
+
+                #retrograde self.points_retrograde[i] == True or 
+                if self.t_points_retrograde[i] == True or (self.available_planets_setting[i]["name"] in ["Mean_Node", "South_Node"] and self.points_retrograde[10] == True):
+                    retro_offsets = {
+                        "Mean_Node": (10, 8),
+                        "South_Node": (8, 8),
+                        "Mercury": (5, 8),
+                        "Venus": (7, 8),
+                        "Mars": (7, 8),
+                        "Jupiter": (10, 10),
+                        "Saturn": (8, 8),
+                        "Uranus": (7, 10),
+                        "Neptune": (7, 10),
+                        "Pluto": (7, 10),
+                    }
+                    planet_name = self.available_planets_setting[i]["name"]
+                    
+                    # Always draw retrograde for nodes
+                    if planet_name in ["Mean_Node", "South_Node"] or self.chart_type != "Composite":
+                        retro_x_offset, retro_y_offset = retro_offsets.get(planet_name, (4, 7))
+                        retro_x = sliceToX(0, (r - rplanet), t_offset) + rplanet + retro_x_offset
+                        retro_y = sliceToY(0, (r - rplanet), t_offset) + rplanet + retro_y_offset
+                        output += f'<text x="{retro_x}" y="{retro_y}" text-anchor="middle" dominant-baseline="central" '
+                        output += f'style="font-family: Arial, sans-serif; font-size: 4px; font-weight: bold; '
+                        output += f'fill: {self.available_planets_setting[i]["color"]}; '
+                        output += f'stroke: #FFFFFF; stroke-width: 1.5px; paint-order: stroke fill;">R</text>'     
 
                 # transit planet line
-                x1 = sliceToX(0, r + 3, t_offset) - 3
-                y1 = sliceToY(0, r + 3, t_offset) - 3
-                x2 = sliceToX(0, r - 3, t_offset) + 3
-                y2 = sliceToY(0, r - 3, t_offset) + 3
-                output += f'<line x1="{str(x1)}" y1="{str(y1)}" x2="{str(x2)}" y2="{str(y2)}" style="stroke: {self.available_planets_setting[i]["color"]}; stroke-width: 1px; stroke-opacity:.8;"/>'
+                x1 = sliceToX(0, r - 36 + 5, t_offset) + 36 - 5
+                y1 = sliceToY(0, r - 36 + 5, t_offset) + 36 - 5
+                x2 = sliceToX(0, r - 36, t_offset) + 36
+                y2 = sliceToY(0, r - 36, t_offset) + 36
+                output += f'<line x1="{str(x1)}" y1="{str(y1)}" x2="{str(x2)}" y2="{str(y2)}" style="stroke: #ec602f; stroke-width: 1.5px; stroke-opacity:1;"/>'
+
+                # inner transit planet line
+                x1 = sliceToX(0, r - 160, t_offset) + 160
+                y1 = sliceToY(0, r - 160, t_offset) + 160
+                x2 = sliceToX(0, r - 160 - 5, t_offset) + 160 + 5
+                y2 = sliceToY(0, r - 160 - 5, t_offset) + 160 + 5
+                output += f'<line x1="{str(x1)}" y1="{str(y1)}" x2="{str(x2)}" y2="{str(y2)}" style="stroke: #ec602f; stroke-width: 1.5px; stroke-opacity:1;"/>'
 
                 # transit planet degree text
-                rotate = self.user.houses_degree_ut[0] - self.t_points_deg_ut[i]
+                rotate = self.user.houses_degree_ut[0] - self.t_points_deg_ut[i] + self.user.asc['position'] 
+    
                 textanchor = "end"
                 t_offset += group_offset[i]
                 rtext = -3.0
+                
 
                 if -90 > rotate > -270:
                     rotate = rotate + 180.0
@@ -805,13 +1567,15 @@ class KerykeionChartSVG:
                     xo = 1
                 else:
                     xo = -1
+                '''
                 deg_x = sliceToX(0, (r - rtext), t_offset + xo) + rtext
                 deg_y = sliceToY(0, (r - rtext), t_offset + xo) + rtext
                 degree = int(t_offset)
                 output += f'<g transform="translate({deg_x},{deg_y})">'
                 output += f'<text transform="rotate({rotate})" text-anchor="{textanchor}'
-                output += f'" style="fill: {self.available_planets_setting[i]["color"]}; font-size: 10px;">{self._dec2deg(self.t_points_deg[i], type="1")}'
+                output += f'" style="fill: {self.available_planets_setting[i]["color"]}; font-size: 10px;">{self._dec2deg(self.t_points_deg[i], type="5")}'
                 output += "</text></g>"
+                '''
 
             # check transit
             if self.chart_type == "Transit" or self.chart_type == "Synastry":
@@ -819,13 +1583,20 @@ class KerykeionChartSVG:
             else:
                 dropin = 0
 
-            # planet line
-            x1 = sliceToX(0, r - (dropin + 3), offset) + (dropin + 3)
-            y1 = sliceToY(0, r - (dropin + 3), offset) + (dropin + 3)
-            x2 = sliceToX(0, (r - (dropin - 3)), offset) + (dropin - 3)
-            y2 = sliceToY(0, (r - (dropin - 3)), offset) + (dropin - 3)
+            #print(self.available_planets_setting[i]["color"])
 
-            output += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.available_planets_setting[i]["color"]}; stroke-width: 2px; stroke-opacity:.6;"/>'
+            if(self.available_planets_setting[i]["name"] == 'ASC' or self.available_planets_setting[i]["name"] == 'MC'):
+                #print('x')
+                output += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: #000000; stroke-width: 3.5px; stroke-opacity:1" />'
+            else:
+                # planet line
+                x1 = sliceToX(0, r - (dropin + 3), pnt_offset) + (dropin + 3)
+                y1 = sliceToY(0, r - (dropin + 3), pnt_offset) + (dropin + 3)
+                x2 = sliceToX(0, (r - (dropin - 3)), pnt_offset) + (dropin - 3)
+                y2 = sliceToY(0, (r - (dropin - 3)), pnt_offset) + (dropin - 3)
+
+                #Some random line
+                #output += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.available_planets_setting[i]["color"]}; stroke-width: 2px; stroke-opacity:.6;"/>'
 
             # check transit
             if self.chart_type == "Transit" or self.chart_type == "Synastry":
@@ -833,11 +1604,12 @@ class KerykeionChartSVG:
             else:
                 dropin = 120
 
-            x1 = sliceToX(0, r - dropin, offset) + dropin
-            y1 = sliceToY(0, r - dropin, offset) + dropin
-            x2 = sliceToX(0, (r - (dropin - 3)), offset) + (dropin - 3)
-            y2 = sliceToY(0, (r - (dropin - 3)), offset) + (dropin - 3)
-            output += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.available_planets_setting[i]["color"]}; stroke-width: 2px; stroke-opacity:.6;"/>'
+            x1 = sliceToX(0, r - dropin, pnt_offset) + dropin
+            y1 = sliceToY(0, r - dropin, pnt_offset) + dropin
+            x2 = sliceToX(0, (r - (dropin - 3)), pnt_offset) + (dropin - 3)
+            y2 = sliceToY(0, (r - (dropin - 3)), pnt_offset) + (dropin - 3)
+            #Some random line
+            #output += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="stroke: {self.available_planets_setting[i]["color"]}; stroke-width: 2px; stroke-opacity:.6;"/>'
 
         return output
 
@@ -1267,7 +2039,7 @@ class KerykeionChartSVG:
         translate = "0"
         
         # To increase the size of the chart, change the viewbox
-        if self.chart_type == "Natal" or self.chart_type == "ExternalNatal":
+        if self.chart_type == "Natal" or self.chart_type == "ExternalNatal" or self.chart_type == "Composite" or self.chart_type == "Transit" or self.chart_type == "Synastry":
             viewbox = self.chart_settings["basic_chart_viewBox"]
         else:
             viewbox = self.chart_settings["wide_chart_viewBox"]
@@ -1292,30 +2064,30 @@ class KerykeionChartSVG:
 
             # circles
             td["c1"] = f'cx="{r}" cy="{r}" r="{r - 36}"'
-            td["c1style"] = f'fill: none; stroke: {self.chart_colors_settings["zodiac_transit_ring_2"]}; stroke-width: 1px; stroke-opacity:.4;'
+            td["c1style"] = f'fill: none; stroke: {self.chart_colors_settings["zodiac_transit_ring_2"]}; stroke-width: 1px; stroke-opacity:1;'
             td["c2"] = 'cx="' + str(r) + '" cy="' + str(r) + '" r="' + str(r - 72) + '"'
-            td["c2style"] = f"fill: {self.chart_colors_settings['paper_1']}; fill-opacity:.4; stroke: {self.chart_colors_settings['zodiac_transit_ring_1']}; stroke-opacity:.4; stroke-width: 1px"
+            td["c2style"] = f"fill: {self.chart_colors_settings['paper_1']}; fill-opacity:1; stroke: {self.chart_colors_settings['zodiac_transit_ring_1']}; stroke-opacity:1; stroke-width: 1px"
 
             td["c3"] = 'cx="' + str(r) + '" cy="' + str(r) + '" r="' + str(r - 160) + '"'
-            td["c3style"] = f"fill: {self.chart_colors_settings['paper_1']}; fill-opacity:.8; stroke: {self.chart_colors_settings['zodiac_transit_ring_0']}; stroke-width: 1px"
+            td["c3style"] = f"fill: {self.chart_colors_settings['paper_1']}; fill-opacity:.8; stroke: {self.chart_colors_settings['zodiac_transit_ring_0']}; stroke-opacity: 1; stroke-width: 1px"
 
             td["makeAspects"] = self._makeAspectsTransit(r, (r - 160))
-            td["makeAspectGrid"] = self._makeAspectTransitGrid(r)
+            #td["makeAspectGrid"] = self._makeAspectTransitGrid(r)
             td["makePatterns"] = ""
             td["chart_width"] = self.full_width
         else:
             td["transitRing"] = ""
-            td["degreeRing"] = self._degreeRing(r)
+            td["degreeRing"] = self._degreeRing(r) #inside 
 
             # circles
             td["c1"] = f'cx="{r}" cy="{r}" r="{r - self.c1}"'
-            td["c1style"] = f'fill: none; stroke: {self.chart_colors_settings["zodiac_radix_ring_2"]}; stroke-width: 1px; '
+            td["c1style"] = f'fill: none; stroke: {self.chart_colors_settings["zodiac_radix_ring_2"]}; stroke-width: 1.5px; '
             td["c2"] = f'cx="{r}" cy="{r}" r="{r - self.c2}"'
-            td["c2style"] = f'fill: {self.chart_colors_settings["paper_1"]}; fill-opacity:.2; stroke: {self.chart_colors_settings["zodiac_radix_ring_1"]}; stroke-opacity:.4; stroke-width: 1px'
+            td["c2style"] = f'fill: {self.chart_colors_settings["paper_1"]}; fill-opacity:.2; stroke: {self.chart_colors_settings["zodiac_radix_ring_1"]}; stroke-opacity:1; stroke-width: 1.5px'
             td["c3"] = f'cx="{r}" cy="{r}" r="{r - self.c3}"'
-            td["c3style"] = f'fill: {self.chart_colors_settings["paper_1"]}; fill-opacity:.8; stroke: {self.chart_colors_settings["zodiac_radix_ring_0"]}; stroke-width: 1px'
+            td["c3style"] = f'fill: {self.chart_colors_settings["paper_1"]}; fill-opacity:.8; stroke: {self.chart_colors_settings["zodiac_radix_ring_0"]}; stroke-width: 1.5px'
             td["makeAspects"] = self._makeAspects(r, (r - self.c3))
-            td["makeAspectGrid"] = self._makeAspectGrid(r)
+            #td["makeAspectGrid"] = self._makeAspectGrid(r)
             td["makePatterns"] = self._makePatterns()
             td["chart_width"] = self.natal_width
 
@@ -1339,7 +2111,7 @@ class KerykeionChartSVG:
             td["stringName"] = f"{self.name}:"
         else:
             td["stringName"] = f'{self.language_settings["info"]}:'
-
+        '''
         # bottom left
         td["bottomLeft1"] = ""
         td["bottomLeft2"] = ""
@@ -1399,7 +2171,7 @@ class KerykeionChartSVG:
 
         # rotation based on latitude
         td["lunar_phase_rotate"] = -90.0 - self.geolat
-
+        '''
         # stringlocation
         if len(self.location) > 35:
             split = self.location.split(",")
@@ -1449,10 +2221,11 @@ class KerykeionChartSVG:
         # functions
         td["makeZodiac"] = self._makeZodiac(r)
         td["makeHouses"] = self._makeHouses(r)
+        #td["makePlanets"] = self._make_planets(r)
+        #td["makeElements"] = self._makeElements(r)
+        #td["makePlanetGrid"] = self._makePlanetGrid()
+        #td["makeHousesGrid"] = self._makeHousesGrid()
         td["makePlanets"] = self._make_planets(r)
-        td["makeElements"] = self._makeElements(r)
-        td["makePlanetGrid"] = self._makePlanetGrid()
-        td["makeHousesGrid"] = self._makeHousesGrid()
 
         return td
 
@@ -1479,6 +2252,19 @@ class KerykeionChartSVG:
             self.template = self.makeTemplate()
 
         self.chartname = self.output_directory / f"{self.name}{self.chart_type}Chart.svg"
+
+        with open(self.chartname, "w", encoding="utf-8", errors="ignore") as output_file:
+            output_file.write(self.template)
+
+        logging.info(f"SVG Generated Correctly in: {self.chartname}")
+    
+    def itermakeSVG(self, i) -> None:
+        """Prints out the SVG file in the specifide folder"""
+
+        if not (self.template):
+            self.template = self.makeTemplate()
+
+        self.chartname = self.output_directory / f"{i}{self.name}{self.chart_type}Chart.svg"
 
         with open(self.chartname, "w", encoding="utf-8", errors="ignore") as output_file:
             output_file.write(self.template)

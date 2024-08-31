@@ -1,0 +1,47 @@
+    else:
+                    # Degrees and minutes with sign symbol                
+                    degree = self._dec2deg(self.points_deg[i], type="1")
+                    minute = self._dec2deg(self.points_deg[i], type="4")
+                    zodiac_symbol = self._get_zodiac_symbol(self.points_sign[i], scale=0.25)
+                    angle_rad = math.radians(pnt_offset)
+        
+                    # Adjust radius based on angle
+                    base_radius = (self.c2 + self.c3) / 2
+                    radius_adjustment = abs(math.cos(angle_rad)) * 15  # Adjust this multiplier as needed
+                    radius_adjustment = 0
+                    degree_radius = base_radius  + radius_adjustment
+                    minute_radius = base_radius + 30 + radius_adjustment
+                    symbol_radius = base_radius + 15 + radius_adjustment
+                    
+                    degree_x = sliceToX(0, r - degree_radius, pnt_offset) + degree_radius 
+                    degree_y = sliceToY(0, r - degree_radius, pnt_offset) + degree_radius 
+                    symbol_x = sliceToX(0, r - symbol_radius, pnt_offset) + symbol_radius
+                    symbol_y = sliceToY(0, r - symbol_radius, pnt_offset) + symbol_radius
+                    minute_x = sliceToX(0, r - minute_radius, pnt_offset) + minute_radius 
+                    minute_y = sliceToY(0, r - minute_radius, pnt_offset) + minute_radius
+                    
+                    # No rotation
+                    rotation = 0
+                    
+                    # Add degree text
+                    output += f'<text x="{degree_x}" y="{degree_y}" text-anchor="middle" '
+                    output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 9px; fill: {self.available_planets_setting[i]["color"]};'
+                    output += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{degree}</text>'
+                    
+                    # Add zodiac symbol
+                    symbol_x_offset = -5
+                    symbol_y_offset = -5
+                    output += f'<g transform="translate({symbol_x + symbol_x_offset}, {symbol_y + symbol_y_offset})">{zodiac_symbol}</g>'
+                    
+                    # Add minute text
+                    output += f'<text x="{minute_x}" y="{minute_y}" text-anchor="middle" '
+                    output += f'style="font-family: Helvetica, Arial, sans-serif; font-size: 8px; fill: {self.available_planets_setting[i]["color"]};'
+                    output += f'stroke: #FFFFFF; stroke-width: 2px; paint-order: stroke fill;">{minute}</text>'
+                    
+                    # Add retrograde symbol if applicable
+                    if self.points_retrograde[i]:
+                        retro_x_offset =  6  # Adjust as needed
+                        retro_y_offset =  4
+                        retro_x = sliceToX(0, (r - dist * rplanet), pnt_offset) + dist * rplanet + retro_x_offset
+                        retro_y = sliceToY(0, (r - dist * rplanet), pnt_offset) + dist * rplanet + retro_y_offset
+                        output += f'<g transform="translate({retro_x}, {retro_y}) rotate({rotation})"><use transform="scale(0.3)" xlink:href="#retrograde" /></g>'

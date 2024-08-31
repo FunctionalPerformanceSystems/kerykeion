@@ -103,6 +103,9 @@ from .astrological_subject import AstrologicalSubject
 from .charts.kerykeion_chart_svg import KerykeionChartSVG
 from .kr_types import *
 from .relationship_score import RelationshipScore
-from .aspects import SynastryAspects, NatalAspects
+from .aspects import SynastryAspects, NatalAspects, CompositeAspects
 from .report import Report
 from .settings import KerykeionSettingsModel, get_settings
+from .kr_types.settings_models import KerykeionSettingsCelestialPointModel
+from .grand_key_0_4_0 import grand_key, rulership_for_planets
+from grand_key_outputs import aspect_table, text_output, symbol_output

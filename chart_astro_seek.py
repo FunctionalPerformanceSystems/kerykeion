@@ -5,13 +5,13 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
 import matplotlib.image as mpimg
-from kerykeion import NatalAspects
+from kerykeion import NatalAspects, CompositeAspects
 
 
 def degrees_into_coords(pos, starting_pt):
     r = 146
     x0 = 350
-    y0 = 350
+    y0 = 349
     degrees = 180 + starting_pt - pos
     radians = degrees * (math.pi / 180)
     x = x0 + r * math.cos(radians)
@@ -20,7 +20,7 @@ def degrees_into_coords(pos, starting_pt):
 
 
 def draw_aspect_lines(astro_subject, image_path):
-
+    
     aspect_list = NatalAspects(astro_subject).relevant_aspects
 
     image = mpimg.imread(image_path)
@@ -38,7 +38,7 @@ def draw_aspect_lines(astro_subject, image_path):
 
     ax.axis('off')
 
-    output_folder = 'aspected_charts'
+    output_folder = 'astroseek_charts'
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -48,6 +48,34 @@ def draw_aspect_lines(astro_subject, image_path):
     plt.savefig(output_file, bbox_inches='tight', pad_inches=0, dpi=200)
     plt.show()
 
+def draw_composite_aspect_lines(astro_sub1, astro_sub2, image_path):
+
+    aspect_list = CompositeAspects(astro_sub1, astro_sub2).relevant_aspects
+
+    image = mpimg.imread(image_path)
+
+    fig, ax = plt.subplots(dpi = 200)
+    ax.imshow(image)
+
+    for aspect in aspect_list:
+        planet1_position = degrees_into_coords(aspect['p1_abs_pos'], (astro_sub1.asc['abs_pos'] + astro_sub2.asc['abs_pos']) / 2)
+        planet2_position = degrees_into_coords(aspect['p2_abs_pos'], (astro_sub1.asc['abs_pos'] + astro_sub2.asc['abs_pos']) / 2)
+
+        con = ConnectionPatch(planet1_position, planet2_position, 'data', 'data',
+                              arrowstyle='-', lw=0.35, color=aspect['color'])
+        ax.add_artist(con)
+
+    ax.axis('off')
+
+    output_folder = 'astroseek_charts'
+
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    output_file = os.path.join(output_folder, os.path.basename(image_path).lstrip('\\'))
+
+    plt.savefig(output_file, bbox_inches='tight', pad_inches=0, dpi=200)
+    plt.show()
 
 def astro_seek_chart_with_numbers(astro_subject):
     year = astro_subject.year
@@ -196,7 +224,7 @@ def test_astro_seek_chart(astro_subject):
         'uran': astro_subject.uranus,
         'neptun': astro_subject.neptune,
         'pluto': astro_subject.pluto,
-        'uzel': astro_subject.mean_node
+        'uzel': astro_subject.true_node
     }
 
     planet_positions = {}
@@ -237,10 +265,83 @@ def test_astro_seek_chart(astro_subject):
 
     return change_url
 
+def composite_astro_seek_chart(astro_sub1, astro_sub2):
+    '''
+    year = astro_subject.year
+    month = astro_subject.month
+    day = astro_subject.day
+    hour = astro_subject.hour
+    minute = astro_subject.minute
+    city = astro_subject.city
+    country = astro_subject.nation
+    lat = astro_subject.lat
+    long = astro_subject.lng
+    '''
+    year = 0
+    month = 0
+    day = 0
+    hour = 0
+    minute = 0
+    city = '0'
+    country = '0'
+    lat = 0
+    long = 0
+
+    planets = {
+        'slunce':  (astro_sub1.sun['abs_pos'] + astro_sub2.sun['abs_pos'])/2,
+        'luna': (astro_sub1.moon['abs_pos'] + astro_sub2.moon['abs_pos'])/2,
+        'merkur': (astro_sub1.mercury['abs_pos'] + astro_sub2.mercury['abs_pos'])/2,
+        'venuse': (astro_sub1.venus['abs_pos'] + astro_sub2.venus['abs_pos'])/2,
+        'mars': (astro_sub1.mars['abs_pos'] + astro_sub2.mars['abs_pos'])/2,
+        'jupiter': (astro_sub1.jupiter['abs_pos'] + astro_sub2.jupiter['abs_pos'])/2,
+        'saturn': (astro_sub1.saturn['abs_pos'] + astro_sub2.saturn['abs_pos'])/2,
+        'uran': (astro_sub1.uranus['abs_pos'] + astro_sub2.uranus['abs_pos'])/2,
+        'neptun': (astro_sub1.neptune['abs_pos'] + astro_sub2.neptune['abs_pos'])/2,
+        'pluto': (astro_sub1.pluto['abs_pos'] + astro_sub2.pluto['abs_pos'])/2,
+        'uzel': (astro_sub1.true_node['abs_pos'] + astro_sub2.true_node['abs_pos'])/2
+    }
+
+    #planet_positions = {}
+    #for planet, data in planets.items():
+    #    planet_positions[planet] = data['abs_pos']
+    
+    #retrograde_params = ''.join(f'&r_{planet}=ANO' for planet, data in planets.items() if data['retrograde']==True)
+    retrograde_params = ''
+    asc = (astro_sub1.asc['abs_pos'] + astro_sub2.asc['abs_pos'])/ 2
+    mc = (astro_sub1.mc['abs_pos'] + astro_sub2.mc['abs_pos']) / 2    
+
+    h1 = (astro_sub1.first_house['abs_pos'] + astro_sub2.first_house['abs_pos'])/ 2
+    
+    change_url = (f"https://horoscopes.astro-seek.com/horoscope-chart4-700__radix_astroseek_customized_{day}-{month}-{year}_{hour}-{minute}.png?"
+                  "&nologo=1&seeklogo=1&domy_cisla=1&barva_planet=0&barva_stupne=2&barva_pozadi=0&barva_domy=1&barva_vzduch=1"
+                  "&barva_invert=0&hide_aspects=1&fortune_seda=1&spirit_seda=1&syzygy_seda=1&vertex_seda=1&chiron_seda=1&lilith_seda=1"
+                  "&fortune_asp=1&spirit_asp=1&syzygy_asp=1&vertex_asp=1&chiron_asp=1&lilith_asp=1&uzel_asp=1"
+                  f"&dum_1_new={asc}&dum_10_new={mc}&no_domy=&dum_1={h1}")
+
+    for i in range(1, 6):
+        h_angle = h1 + i * 30
+        if h_angle > 360:
+            h_angle -= 360
+        change_url += f"&dum_{i+1}={h_angle}"
+
+    change_url += (f"&planeta_slunce={planets['slunce']}&planeta_luna={planets['luna']}&planeta_merkur={planets['merkur']}"
+                   f"&planeta_venuse={planets['venuse']}&planeta_mars={planets['mars']}&planeta_jupiter={planets['jupiter']}"
+                   f"&planeta_saturn={planets['saturn']}&planeta_uran={planets['uran']}&planeta_neptun={planets['neptun']}"
+                   f"&planeta_pluto={planets['pluto']}&planeta_uzel={planets['uzel']}"
+                   "&planeta_lilith=0&planeta_chiron=0&planeta_fortune=0&planeta_bstesti=0&planeta_bspirit=0&planeta_spirit=0"
+                   "&planeta_syzygy=0&planeta_vertex=0"
+                   + retrograde_params +
+                   f"&tolerance=1&tolerance_paral=0&house_system=whole&narozeni_den={day}&narozeni_mesic={month}&narozeni_rok={year}"
+                   f"&narozeni_hodina={hour}&narozeni_minuta={minute}&narozeni_mesto_hidden={city}&narozeni_stat_hidden={country}"
+                   "&narozeni_podstat_kratky_hidden=&narozeni_city=Moscow,%20Russia&narozeni_sirka_stupne=55&narozeni_sirka_minuty=45"
+                   "&narozeni_sirka_smer=0&narozeni_delka_stupne=37&narozeni_delka_minuty=37&narozeni_delka_smer=0"
+                   "&narozeni_timezone_form=auto&narozeni_timezone_dst_form=auto&seeklogo=0")
+
+    return change_url
 
 
-
-def download_chart_image(url, folder="charts_downloads"):
+def download_chart_image(url, folder="astroseek_charts"):
+    print(url)
     if not os.path.exists(folder):
         os.makedirs(folder)
 

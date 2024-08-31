@@ -153,7 +153,7 @@ class NatalAspects:
                     aspects_list_subtract.append(a)
 
         # Filter out aspects with 'Mean_Node', 'MC', 'ASC', 'True_Node'
-        fil_asp = ['Mean_Node', 'MC', 'ASC', 'True_Node']             
+        fil_asp = ['Mean_Node', 'MC', 'ASC', 'True_Node', 'South_Node']             
         filtered_aspects = [
         aspect for aspect in aspects_filtered 
         if aspect['p1_name'] not in fil_asp 

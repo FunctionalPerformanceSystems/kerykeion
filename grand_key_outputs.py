@@ -5,10 +5,12 @@ def aspect_table(astro_subject):
     name=NatalAspects(astro_subject)
     aspect=name.relevant_aspects
     df=pd.DataFrame(aspect)
+
+    columns_to_drop = ['p1_abs_pos', 'p2_abs_pos', 'aspect_degrees', 'color', 'aid', 'diff', 'p1', 'p2']
+    df.drop(columns=columns_to_drop, inplace=True)
     
     df.reset_index(drop=True, inplace=True)
     df.index += 1
-
     return df
 
 

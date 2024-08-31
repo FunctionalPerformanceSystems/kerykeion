@@ -9,3 +9,5 @@ The aspects module contains the classes and functions for calculating
 
 from .synastry_aspects import SynastryAspects
 from .natal_aspects import NatalAspects
+from .composite_aspects import CompositeAspects
+

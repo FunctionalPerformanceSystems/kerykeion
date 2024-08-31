@@ -1,6 +1,7 @@
 from kerykeion.kr_types import KerykeionPointModel, KerykeionException, KerykeionSettingsModel, AstrologicalSubjectModel
 from typing import Union, Literal
 import logging
+import math
 
 
 def get_number_from_name(name: str) -> int:
@@ -29,14 +30,16 @@ def get_number_from_name(name: str) -> int:
         return 9
     elif name == "mean_node":
         return 10
-    elif name == "true_node":
+    elif name == "south_node":
         return 11
-    elif name == "asc":
+    elif name == "true_node":
         return 12
-    elif name == "mc":
+    elif name == "asc":
         return 13
-    elif name == "chiron":
-        return 15
+    elif name == "mc":
+        return 14
+    #elif name == "chiron":
+    #    return 15
     
     else:
         return int(name)
@@ -207,6 +210,31 @@ def calculate_position(
         raise KerykeionException(f"Error in calculating positions! Degrees: {degree}")
 
     return KerykeionPointModel(**dictionary)
+
+def mean_angle(angle1, angle2):
+    x = math.cos(math.radians(angle1)) + math.cos(math.radians(angle2))
+    y = math.sin(math.radians(angle1)) + math.sin(math.radians(angle2))
+    mean = math.degrees(math.atan2(y, x))
+    return mean % 360
+
+def shortest_arc_midpoint(angle1, angle2):
+    # Normalize the angles to be between 0 and 360 degrees
+    angle1 = (angle1 % 360 + 360) % 360
+    angle2 = (angle2 % 360 + 360) % 360
+
+    # Calculate the absolute difference between the angles
+    diff = abs(angle1 - angle2)
+
+    # If the difference is greater than 180, we need to go the other way around the circle
+    if diff > 180:
+        # Calculate the midpoint of the smaller arc
+        midpoint = (max(angle1, angle2) + min(angle1, angle2) + 360) / 2
+    else:
+         # Calculate the midpoint of the arc
+        midpoint = (angle1 + angle2) / 2
+
+     # Ensure the result is between 0 and 360 degrees
+    return midpoint % 360
 
 def setup_logging(level: str) -> None:
     """Setup logging for testing.

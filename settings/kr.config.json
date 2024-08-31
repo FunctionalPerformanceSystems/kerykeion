@@ -32,13 +32,12 @@
         "Uranus": "Uranus",
         "Neptune": "Neptune",
         "Pluto": "Pluto",
-        "Asc": "Asc",
-        "Mc": "Mc",
+        "ASC": "ASC",
+        "MC": "MC",
         "Dsc": "Dsc",
         "Ic": "Ic",
         "True_Node": "North Node",
-        "Mean_Node": "Mean Node",
-        "Chiron": "Chiron"
+        "Mean_Node": "Mean_Node"
       }
     },
     "FR": {
@@ -73,13 +72,12 @@
         "Uranus": "Uranus",
         "Neptune": "Neptune",
         "Pluto": "Pluton",
-        "Asc": "Asc",
-        "Mc": "Mc",
+        "ASC": "ASC",
+        "MC": "MC",
         "Dsc": "Dsc",
         "Ic": "Ic",
         "True_Node": "Noeud Nord",
-        "Mean_Node": "Noeud Moyen",
-        "Chiron": "Chiron"
+        "Mean_Node": "Noeud Moyen"
       }
     },
     "PT": {
@@ -114,13 +112,12 @@
         "Uranus": "Urano",
         "Neptune": "Netuno",
         "Pluto": "Plutão",
-        "Asc": "Asc",
-        "Mc": "Mc",
+        "ASC": "ASC",
+        "MC": "MC",
         "Dsc": "Dsc",
         "Ic": "Ic",
         "True_Node": "Nodo Norte",
-        "Mean_Node": "Nodo Médio",
-        "Chiron": "Quíron"
+        "Mean_Node": "Nodo Médio"
       }
     },
     "IT": {
@@ -155,13 +152,12 @@
         "Uranus": "Urano",
         "Neptune": "Nettuno",
         "Pluto": "Plutone",
-        "Asc": "Asc",
-        "Mc": "Mc",
+        "ASC": "ASC",
+        "MC": "MC",
         "Dsc": "Dsc",
         "Ic": "Ic",
         "True_Node": "Nodo Nord",
-        "Mean_Node": "Nodo Medio",
-        "Chiron": "Chirone"
+        "Mean_Node": "Nodo Medio"
       }
     },
     "CN": {
@@ -196,13 +192,12 @@
         "Uranus": "天王星",
         "Neptune": "海王星",
         "Pluto": "冥王星",
-        "Asc": "上升點",
-        "Mc": "上中天",
+        "ASC": "上升點",
+        "MC": "上中天",
         "Dsc": "下降點",
         "Ic": "下中天",
         "True_Node": "北交點",
-        "Mean_Node": "平交點",
-        "Chiron": "凱龍星"
+        "Mean_Node": "平交點"
       }
     }
   },
@@ -322,7 +317,7 @@
     {
       "id": 0,
       "name": "Sun",
-      "color": "#984b00",
+      "color": "#000000",
       "is_active": true,
       "element_points": 40,
       "related_zodiac_signs": ["4"],
@@ -331,7 +326,7 @@
     {
       "id": 1,
       "name": "Moon",
-      "color": "#150052",
+      "color": "#000000",
       "is_active": true,
       "element_points": 40,
       "related_zodiac_signs": ["3"],
@@ -340,7 +335,7 @@
     {
       "id": 2,
       "name": "Mercury",
-      "color": "#520800",
+      "color": "#000000",
       "is_active": true,
       "element_points": 15,
       "related_zodiac_signs": ["2", "5"],
@@ -349,7 +344,7 @@
     {
       "id": 3,
       "name": "Venus",
-      "color": "#400052",
+      "color": "#000000",
       "is_active": true,
       "element_points": 15,
       "related_zodiac_signs": ["1", "6"],
@@ -358,7 +353,7 @@
     {
       "id": 4,
       "name": "Mars",
-      "color": "#540000",
+      "color": "#000000",
       "is_active": true,
       "element_points": 15,
       "related_zodiac_signs": ["0","7"],
@@ -367,7 +362,7 @@
     {
       "id": 5,
       "name": "Jupiter",
-      "color": "#47133d",
+      "color": "#000000",
       "is_active": true,
       "element_points": 10,
       "related_zodiac_signs": ["8","11"],
@@ -376,7 +371,7 @@
     {
       "id": 6,
       "name": "Saturn",
-      "color": "#124500",
+      "color": "#000000",
       "is_active": true,
       "element_points": 10,
       "related_zodiac_signs": ["9","10"],
@@ -385,7 +380,7 @@
     {
       "id": 7,
       "name": "Uranus",
-      "color": "#6f0766",
+      "color": "#000000",
       "is_active": true,
       "element_points": 10,
       "related_zodiac_signs": [],
@@ -394,7 +389,7 @@
     {
       "id": 8,
       "name": "Neptune",
-      "color": "#06537f",
+      "color": "#000000",
       "is_active": true,
       "element_points": 10,
       "related_zodiac_signs": [],
@@ -403,7 +398,7 @@
     {
       "id": 9,
       "name": "Pluto",
-      "color": "#713f04",
+      "color": "#000000",
       "is_active": true,
       "element_points": 10,
       "related_zodiac_signs": [],
@@ -412,50 +407,59 @@
     {
       "id": 10,
       "name": "Mean_Node",
-      "color": "#4c1541",
-      "is_active": false,
+      "color": "#000000",
+      "is_active": true,
       "element_points": 0,
       "related_zodiac_signs": [],
       "label": "Mean_Node"
     },
     {
       "id": 11,
-      "name": "True_Node",
-      "color": "#4c1541",
+      "name": "South_Node",
+      "color": "#000000",
       "is_active": true,
+      "element_points": 0,
+      "related_zodiac_signs": [],
+      "label": "South_Node"
+    },
+    {
+      "id": 12,
+      "name": "True_Node",
+      "color": "#000000",
+      "is_active": false,
       "element_points": 20,
       "related_zodiac_signs": [],
       "label": "True_Node"
     },
     {
-      "id": 12,
+      "id": 13,
       "name": "ASC",
-      "color": "#ff7e00",
+      "color": "#000000",
       "is_active": true,
       "element_points": 40,
       "related_zodiac_signs": [],
       "label": "ASC"
     },
     {
-      "id": 13,
+      "id": 14,
       "name": "MC",
-      "color": "#FF0000",
+      "color": "#000000",
       "is_active": true,
       "element_points": 20,
       "related_zodiac_signs": [],
       "label": "MC"
     },
     {
-      "id": 14,
+      "id": 15,
       "name": "Seventh_House",
-      "color": "#0000FF",
+      "color": "#000000",
       "is_active": false,
       "element_points": 0,
       "related_zodiac_signs": [],
       "label": "Dsc"
     },
     {
-      "id": 15,
+      "id": 16,
       "name": "Fourth_House",
       "color": "#000000",
       "is_active": false,
@@ -467,39 +471,39 @@
   "chart_colors": {
     "paper_0": "#000000",
     "paper_1": "#ffffff",
-    "zodiac_bg_0": "#ff7200",
-    "zodiac_bg_1": "#6b3d00",
-    "zodiac_bg_2": "#69acf1",
-    "zodiac_bg_3": "#2b4972",
-    "zodiac_bg_4": "#ff7200",
-    "zodiac_bg_5": "#6b3d00",
-    "zodiac_bg_6": "#69acf1",
-    "zodiac_bg_7": "#2b4972",
-    "zodiac_bg_8": "#ff7200",
-    "zodiac_bg_9": "#6b3d00",
-    "zodiac_bg_10": "#69acf1",
-    "zodiac_bg_11": "#2b4972",
-    "zodiac_icon_0": "#ff7200",
-    "zodiac_icon_1": "#6b3d00",
-    "zodiac_icon_2": "#69acf1",
-    "zodiac_icon_3": "#2b4972",
-    "zodiac_icon_4": "#ff7200",
-    "zodiac_icon_5": "#6b3d00",
-    "zodiac_icon_6": "#69acf1",
-    "zodiac_icon_7": "#2b4972",
-    "zodiac_icon_8": "#ff7200",
-    "zodiac_icon_9": "#6b3d00",
-    "zodiac_icon_10": "#69acf1",
-    "zodiac_icon_11": "#2b4972",
-    "zodiac_radix_ring_0": "#ff0000",
-    "zodiac_radix_ring_1": "#ff0000",
-    "zodiac_radix_ring_2": "#ff0000",
-    "zodiac_transit_ring_0": "#ff0000",
-    "zodiac_transit_ring_1": "#ff0000",
-    "zodiac_transit_ring_2": "#0000ff",
-    "zodiac_transit_ring_3": "#0000ff",
-    "houses_radix_line": "#ff0000",
-    "houses_transit_line": "#0000ff",
+    "zodiac_bg_0": "#FFFFFF",
+    "zodiac_bg_1": "#FFFFFF",
+    "zodiac_bg_2": "#FFFFFF",
+    "zodiac_bg_3": "#FFFFFF",
+    "zodiac_bg_4": "#FFFFFF",
+    "zodiac_bg_5": "#FFFFFF",
+    "zodiac_bg_6": "#FFFFFF",
+    "zodiac_bg_7": "#FFFFFF",
+    "zodiac_bg_8": "#FFFFFF",
+    "zodiac_bg_9": "#FFFFFF",
+    "zodiac_bg_10": "#FFFFFF",
+    "zodiac_bg_11": "#FFFFFF",
+    "zodiac_icon_0": "#ea3425",
+    "zodiac_icon_1": "#699534",
+    "zodiac_icon_2": "#daad4c",
+    "zodiac_icon_3": "#192bc5",
+    "zodiac_icon_4": "#ea3425",
+    "zodiac_icon_5": "#699534",
+    "zodiac_icon_6": "#daad4c",
+    "zodiac_icon_7": "#192bc5",
+    "zodiac_icon_8": "#ea3425",
+    "zodiac_icon_9": "#699534",
+    "zodiac_icon_10": "#daad4c",
+    "zodiac_icon_11": "#192bc5",
+    "zodiac_radix_ring_0": "#000000",
+    "zodiac_radix_ring_1": "#000000",
+    "zodiac_radix_ring_2": "#000000",
+    "zodiac_transit_ring_0": "#000000",
+    "zodiac_transit_ring_1": "#000000",
+    "zodiac_transit_ring_2": "#000000",
+    "zodiac_transit_ring_3": "#000000",
+    "houses_radix_line": "#000000",
+    "houses_transit_line": "#000000",
     "lunar_phase_0": "#000000",
     "lunar_phase_1": "#FFFFFF",
     "lunar_phase_2": "#CCCCCC"
@@ -510,7 +514,7 @@
     "language": "EN"
   },
   "chart_settings": {
-    "basic_chart_viewBox": "0 0 772.2 546.0",
+    "basic_chart_viewBox": "0 0 586.0 586.0",
     "wide_chart_viewBox": "0 0 1060 546.0"
   }
 }

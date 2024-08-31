@@ -12,6 +12,12 @@ from kerykeion.aspects.natal_aspects import NatalAspects
 from kerykeion.settings.kerykeion_settings import get_settings
 from kerykeion.aspects.aspects_utils import planet_id_decoder, get_aspect_from_two_points, get_active_points_list
 
+AXES_LIST = [
+    "First_House",
+    "Tenth_House",
+    "Seventh_House",
+    "Fourth_House",
+]
 
 class SynastryAspects(NatalAspects):
     """
@@ -64,6 +70,8 @@ class SynastryAspects(NatalAspects):
                     self.aspects_settings,
                     first_active_points_list[first]["abs_pos"],
                     second_active_points_list[second]["abs_pos"],
+                    first_active_points_list[first]["sign_num"],
+                    second_active_points_list[second]["sign_num"]
                 )
 
                 if verdict == True:
@@ -91,6 +99,48 @@ class SynastryAspects(NatalAspects):
 
         return self.all_aspects_list
 
+    @cached_property
+    def relevant_aspects(self):
+        """
+        Filters the aspects list with the desired points, in this case
+        the most important are hardcoded.
+        Set the list with set_points and creating a list with the names
+        or the numbers of the houses.
+        """
+
+        #logging.debug("Relevant aspects not already calculated, calculating now...")
+        self.all_aspects
+
+        aspects_filtered = []
+        for a in self.all_aspects_list:
+            if self.aspects_settings[a["aid"]]["is_active"] == True:
+                aspects_filtered.append(a)
+
+        axes_list = AXES_LIST
+        counter = 0
+
+        aspects_list_subtract = []
+        for a in aspects_filtered:
+            counter += 1
+            name_p1 = str(a["p1_name"])
+            name_p2 = str(a["p2_name"])
+
+            if name_p1 in axes_list:
+                if abs(a["orbit"]) >= self.axes_orbit_settings:
+                    aspects_list_subtract.append(a)
+
+            elif name_p2 in axes_list:
+                if abs(a["orbit"]) >= self.axes_orbit_settings:
+                    aspects_list_subtract.append(a)
+
+        # Filter out aspects with 'Mean_Node', 'MC', 'ASC', 'True_Node'
+        fil_asp = ['Mean_Node', 'MC', 'ASC', 'True_Node', 'South_Node']             
+        filtered_aspects = [
+        aspect for aspect in aspects_filtered 
+        if aspect['p1_name'] not in fil_asp 
+        and aspect['p2_name'] not in fil_asp]
+
+        return filtered_aspects
 
 if __name__ == "__main__":
     from kerykeion.utilities import setup_logging

@@ -41,6 +41,7 @@ Planet = Literal[
     "Neptune",
     "Pluto",
     "Mean_Node",
+    "South_Node",
     "True_Node",
     "ASC",
     "MC"
@@ -54,6 +55,6 @@ Quality = Literal[
     "Mutable",
 ]
 
-ChartType = Literal["Natal", "ExternalNatal", "Synastry", "Transit"]
+ChartType = Literal["Natal", "ExternalNatal", "Synastry", "Transit", "Composite"]
 
 LunarPhaseEmoji = Literal["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
