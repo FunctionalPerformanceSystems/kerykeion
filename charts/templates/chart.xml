@@ -48,7 +48,7 @@ This file is part of Kerykeion and is based on OpenAstro.org -->
                 <!-- Planets (24x24) -->
                <symbol id="Sun" class="planet-symbol">
                     <g transform="translate(1,4)">
-                        <circle cx="10" cy="10" r="11"
+                        <circle cx="10" cy="10" r="9"
                             class="planet-glow" />
                         <circle cx="10" cy="10" r="9"
                             class="planet-main" />

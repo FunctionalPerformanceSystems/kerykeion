@@ -202,5 +202,9 @@ def rulership_for_planets(astro_subject):
             'ruler_house': ruler_house_name
         })
 
+    output_lines = []
     for result in result_list:
-        print(f"{result['index']}. {result['name']} in {result['sign']} -> in {result['house']} -> ruled by {result['ruler']} -> ruler in {result['ruler_in_sign']} -> in {result['ruler_house']}")
+        output_lines.append(
+            f"{result['index']}. {result['name']} in {result['sign']} -> in {result['house']} -> ruled by {result['ruler']} -> ruler in {result['ruler_in_sign']} -> in {result['ruler_house']}"
+        )
+    return "\n".join(output_lines)
